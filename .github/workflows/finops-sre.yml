@@ -1,0 +1,23 @@
+name: finops-sre
+
+on:
+  schedule:
+    - cron: "0 12 * * 1"
+  workflow_dispatch:
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Rightsizing analysis
+        run: python finops-aiops/python/rightsizing_engine.py
+      - name: Budget drift prediction
+        run: python finops-aiops/python/budget_burn_predictor.py
+      - name: SLO risk check
+        run: python finops-aiops/python/slo_risk_checker.py
+      - name: Anomaly detection
+        run: python finops-aiops/python/anomaly_detector.py

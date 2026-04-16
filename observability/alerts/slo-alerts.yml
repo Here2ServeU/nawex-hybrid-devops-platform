@@ -1,0 +1,10 @@
+groups:
+  - name: nawex-slo
+    rules:
+      - alert: AvailabilityBudgetBurn
+        expr: 1 > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Starter alert placeholder for NAWEX SLO burn detection"

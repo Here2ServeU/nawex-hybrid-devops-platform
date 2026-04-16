@@ -1,0 +1,25 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  validate-and-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Lint Python
+        run: python -m py_compile app/nawex-api/app.py app/nawex-worker/worker.py finops-aiops/python/*.py
+      - name: Validate Kubernetes YAML
+        run: grep -q "kind: Deployment" k8s/base/platform.yaml
+      - name: Build API image
+        run: docker build -t nawex-api:ci app/nawex-api
+      - name: Build worker image
+        run: docker build -t nawex-worker:ci app/nawex-worker
+      - name: Build web UI image
+        run: docker build -t nawex-web-ui:ci app/nawex-web-ui

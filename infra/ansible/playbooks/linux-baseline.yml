@@ -1,0 +1,6 @@
+---
+- name: Apply Linux baseline for NAWEX platform nodes
+  hosts: linux_nodes
+  become: true
+  roles:
+    - common

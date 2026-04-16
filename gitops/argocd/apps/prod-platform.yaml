@@ -1,0 +1,18 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: nawex-prod
+  namespace: argocd
+spec:
+  project: nawex-platform
+  source:
+    repoURL: https://github.com/example-org/nawex-hybrid-devops-platform.git
+    targetRevision: main
+    path: k8s/overlays/prod
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: nawex-platform
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

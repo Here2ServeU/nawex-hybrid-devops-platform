@@ -1,0 +1,28 @@
+name: deploy
+
+on:
+  workflow_dispatch:
+
+jobs:
+  gitops-handoff:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Argo CD app manifests exist
+        run: |
+          test -f gitops/argocd/project.yaml
+          test -f gitops/argocd/root-application.yaml
+          test -f gitops/argocd/apps/dev-platform.yaml
+          test -f gitops/argocd/apps/staging-platform.yaml
+          test -f gitops/argocd/apps/prod-platform.yaml
+      - name: Validate environment overlays exist
+        run: |
+          test -f k8s/overlays/dev/kustomization.yaml
+          test -f k8s/overlays/staging/kustomization.yaml
+          test -f k8s/overlays/prod/kustomization.yaml
+      - name: GitOps deployment note
+        run: |
+          echo "GitHub Actions validated the GitOps payload."
+          echo "Argo CD is expected to reconcile cluster state from this repository."
+      - name: Smoke test placeholder
+        run: bash scripts/smoke_test.sh

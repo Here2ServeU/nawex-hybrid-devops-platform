@@ -1,0 +1,14 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nawex-api
+  namespace: nawex-platform
+spec:
+  replicas: 5
+  template:
+    spec:
+      containers:
+        - name: nawex-api
+          env:
+            - name: NAWEX_ENV
+              value: prod

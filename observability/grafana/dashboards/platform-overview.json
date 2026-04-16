@@ -1,0 +1,17 @@
+{
+  "title": "NAWEX Platform Overview",
+  "panels": [
+    {
+      "title": "API Latency p95",
+      "type": "timeseries"
+    },
+    {
+      "title": "API Error Rate",
+      "type": "timeseries"
+    },
+    {
+      "title": "CPU Request vs Usage",
+      "type": "timeseries"
+    }
+  ]
+}

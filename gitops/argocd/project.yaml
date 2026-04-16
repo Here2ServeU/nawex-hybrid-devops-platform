@@ -1,0 +1,18 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: nawex-platform
+  namespace: argocd
+spec:
+  description: NAWEX hybrid platform GitOps project
+  sourceRepos:
+    - https://github.com/example-org/nawex-hybrid-devops-platform.git
+  destinations:
+    - namespace: nawex-platform
+      server: https://kubernetes.default.svc
+  clusterResourceWhitelist:
+    - group: "*"
+      kind: "*"
+  namespaceResourceWhitelist:
+    - group: "*"
+      kind: "*"
