@@ -1,0 +1,15 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nawex-api
+  namespace: nawex-platform
+spec:
+  replicas: 1
+  template:
+    spec:
+      containers:
+        - name: nawex-api
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: NAWEX_ENV
+              value: local

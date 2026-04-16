@@ -6,13 +6,29 @@ metadata:
 spec:
   description: NAWEX hybrid platform GitOps project
   sourceRepos:
-    - https://github.com/example-org/nawex-hybrid-devops-platform.git
+    - https://github.com/Here2ServeU/nawex-hybrid-devops-platform.git
   destinations:
-    - namespace: nawex-platform
+    - namespace: nawex-dev
+      server: https://kubernetes.default.svc
+    - namespace: nawex-onprem
+      server: https://kubernetes.default.svc
+    - namespace: nawex-staging
+      server: https://kubernetes.default.svc
+    - namespace: nawex-prod
+      server: https://kubernetes.default.svc
+    - namespace: nawex-local
       server: https://kubernetes.default.svc
   clusterResourceWhitelist:
-    - group: "*"
-      kind: "*"
+    - group: ""
+      kind: Namespace
   namespaceResourceWhitelist:
-    - group: "*"
-      kind: "*"
+    - group: ""
+      kind: Service
+    - group: ""
+      kind: ServiceAccount
+    - group: apps
+      kind: Deployment
+    - group: autoscaling
+      kind: HorizontalPodAutoscaler
+    - group: networking.k8s.io
+      kind: NetworkPolicy

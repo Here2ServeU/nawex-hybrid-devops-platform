@@ -1,7 +1,11 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
-namespace: nawex-dev
+namespace: nawex-local
 resources:
   - ../../base
 patches:
   - path: patch-api.yaml
+images:
+  - name: ghcr.io/example/nawex-api
+    newName: nawex-api
+    newTag: local

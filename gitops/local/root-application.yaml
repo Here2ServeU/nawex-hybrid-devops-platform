@@ -1,18 +1,20 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: nawex-prod
+  name: nawex-local-root
   namespace: argocd
 spec:
   project: nawex-platform
   source:
     repoURL: https://github.com/example-org/nawex-hybrid-devops-platform.git
     targetRevision: main
-    path: k8s/overlays/prod
+    path: gitops/local/apps
   destination:
     server: https://kubernetes.default.svc
-    namespace: nawex-prod
+    namespace: argocd
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
