@@ -1,0 +1,26 @@
+{{ define "nawex.slack.title" }}
+{{- if eq .Status "firing" -}}
+:rotating_light: [{{ .CommonLabels.severity | toUpper }}] {{ .CommonLabels.alertname }}
+{{- else -}}
+:white_check_mark: [RESOLVED] {{ .CommonLabels.alertname }}
+{{- end -}}
+{{ end }}
+
+{{ define "nawex.slack.text" }}
+{{- range .Alerts }}
+*Service:* `{{ .Labels.service }}`  *Severity:* `{{ .Labels.severity }}`
+*Summary:* {{ .Annotations.summary }}
+
+{{ .Annotations.description }}
+
+*Runbook:* {{ .Annotations.runbook_url }}
+*Remediation action:* `{{ .Labels.remediation_action }}`
+
+*Approve / deny from any terminal with kube access:*
+```
+./scripts/incident_respond.sh approve {{ .Fingerprint }}   # run the remediation
+./scripts/incident_respond.sh deny    {{ .Fingerprint }}   # silence and acknowledge
+./scripts/incident_respond.sh show    {{ .Fingerprint }}   # preview the plan first
+```
+{{ end }}
+{{ end }}

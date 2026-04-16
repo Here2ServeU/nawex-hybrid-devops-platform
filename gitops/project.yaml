@@ -26,9 +26,26 @@ spec:
       kind: Service
     - group: ""
       kind: ServiceAccount
+    - group: ""
+      kind: ConfigMap
     - group: apps
       kind: Deployment
     - group: autoscaling
       kind: HorizontalPodAutoscaler
     - group: networking.k8s.io
       kind: NetworkPolicy
+    - group: policy
+      kind: PodDisruptionBudget
+  orphanedResources:
+    warn: true
+  roles:
+    - name: read-only
+      description: Read-only visibility into nawex-platform apps
+      policies:
+        - p, proj:nawex-platform:read-only, applications, get, nawex-platform/*, allow
+    - name: ops
+      description: Operators who can sync but not delete
+      policies:
+        - p, proj:nawex-platform:ops, applications, get, nawex-platform/*, allow
+        - p, proj:nawex-platform:ops, applications, sync, nawex-platform/*, allow
+        - p, proj:nawex-platform:ops, applications, action/*, nawex-platform/*, allow

@@ -1,1 +1,59 @@
+# Local GitOps harness state
 .local/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.venv/
+venv/
+build/
+dist/
+
+# Terraform
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
+
+# Node / web-ui build artifacts (future-proofing)
+node_modules/
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Secrets — never commit
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+kubeconfig
+*-kubeconfig.yaml
+
+# Incident state (local to operator machine)
+.incidents/

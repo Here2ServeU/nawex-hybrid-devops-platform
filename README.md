@@ -38,10 +38,10 @@ flowchart LR
 - [infra/ansible/](infra/ansible/) holds Linux baseline automation, shared roles, and per-environment inventories including [on-prem nodes](infra/ansible/inventories/onprem/).
 - [k8s/](k8s/) contains the Kubernetes base manifests and the [dev](k8s/overlays/dev/), [staging](k8s/overlays/staging/), [prod](k8s/overlays/prod/), and [onprem](k8s/overlays/onprem/) overlays.
 - [gitops/](gitops/) contains the Argo CD GitOps layer, including the [root application](gitops/root-application.yaml), [project](gitops/project.yaml), the [environment apps](gitops/apps/), and the [local test harness](gitops/local/).
-- [observability/](observability/) contains Prometheus configuration, Grafana dashboards, and alert definitions.
+- [observability/](observability/) contains Prometheus configuration, Grafana dashboards, [multi-burn-rate SLO alerts](observability/alerts/slo-alerts.yml), and an [AlertManager → Slack](observability/alertmanager/alertmanager.yml) pipeline.
 - [finops-aiops/](finops-aiops/) contains Python utilities for anomaly detection, rightsizing, budget burn prediction, and SLO risk analysis.
-- [runbooks/](runbooks/) contains operational procedures for incidents, rollback, Kubernetes troubleshooting, and cost response.
-- [scripts/](scripts/) contains bootstrap, deployment, and smoke-test helpers used around the platform lifecycle.
+- [runbooks/](runbooks/) contains operational procedures for incidents, rollback, Kubernetes troubleshooting, cost response, and the [Slack alerting flow](runbooks/slack-alerting.md).
+- [scripts/](scripts/) contains bootstrap, deployment, smoke-test, and incident-response helpers, plus per-alert [remediation scripts](scripts/remediations/).
 
 ## What This Proves
 
@@ -53,13 +53,44 @@ flowchart LR
 - Observability, alerting, and SRE operating practices
 - FinOps and AIOps automation embedded into the platform workflow
 
+## Alerting + Incident Response (Slack)
+
+Engineers get paged in Slack when SLO burn, crashlooping pods, or budget drift trip
+a rule. Each alert carries a remediation hint and a one-line approve/deny command.
+
+```text
+Prometheus rules  ──►  AlertManager  ──►  Slack channel
+                             │
+                             └─►  alert_webhook.py  ──►  .incidents/<id>.json
+                                                                │
+                                                                ▼
+                                                   scripts/incident_respond.sh
+                                                   ├── list
+                                                   ├── show    <id>
+                                                   ├── approve <id>  → scripts/remediations/<action>.sh
+                                                   └── deny    <id>
+```
+
+- **Alert rules** live in [observability/alerts/slo-alerts.yml](observability/alerts/slo-alerts.yml). Each rule has a `remediation_action` label that maps 1:1 to a script in [scripts/remediations/](scripts/remediations/).
+- **AlertManager** routes via [observability/alertmanager/alertmanager.yml](observability/alertmanager/alertmanager.yml) using `${SLACK_WEBHOOK_URL}`. The Slack message body is rendered from [slack.tmpl](observability/alertmanager/templates/slack.tmpl) and always includes the summary, the runbook URL, and copy-ready `approve` / `deny` / `show` commands.
+- **Receiver**: [scripts/alert_webhook.py](scripts/alert_webhook.py) persists each alert to `.incidents/<fingerprint>.json` so engineers can triage offline.
+- **Engineer workflow** (on-call receives Slack ping):
+  1. `./scripts/incident_respond.sh show <id>` — preview the incident and the exact plan in `DRY_RUN=1`.
+  2. Approve to run the mapped remediation, or deny to acknowledge without action.
+  3. Audit trail posts back to Slack if `SLACK_WEBHOOK_URL` is set.
+
+Full procedure, remediation table, and a local end-to-end test live in [runbooks/slack-alerting.md](runbooks/slack-alerting.md).
+
 ## Security Posture
 
 - Kubernetes namespaces are labeled for Pod Security Admission `restricted` enforcement.
 - The API workload uses a dedicated service account with `automountServiceAccountToken: false`.
-- Containers run as non-root with `RuntimeDefault` seccomp, dropped Linux capabilities, and no privilege escalation.
-- Argo CD project permissions are scoped to the resource kinds this platform actually deploys instead of wildcard access.
-- Network policy keeps the default deny stance and adds only the minimum ingress and DNS egress needed for the sample service.
+- Containers run as non-root with `RuntimeDefault` seccomp, dropped Linux capabilities, `readOnlyRootFilesystem`, no privilege escalation, and a startup/readiness/liveness probe triad.
+- A `PodDisruptionBudget` and `topologySpreadConstraints` keep the API available during node churn.
+- Argo CD project permissions are scoped to the resource kinds this platform actually deploys (no wildcards), with read-only and ops roles declared in the AppProject.
+- Network policy keeps the default-deny stance and adds only the minimum ingress and DNS egress needed for the sample service.
+- CI runs **Hadolint** on every Dockerfile, **Trivy** against each built image (CRITICAL/HIGH gate), **kubeconform** against every overlay, **tfsec** + **checkov** on Terraform, **ruff** + **pytest** on Python, and **shellcheck** on all scripts.
+- Web UI HTML ships a strict CSP and related headers; API Docker image is a distroless-style multi-stage build served by gunicorn with a container HEALTHCHECK.
 
 ## GitOps Flow
 
@@ -87,9 +118,27 @@ What the local harness does:
 - Installs Argo CD and applies [gitops/local/root-application.yaml](gitops/local/root-application.yaml), which syncs [gitops/local/apps/local-platform.yaml](gitops/local/apps/local-platform.yaml).
 - Deploys the local Kubernetes overlay from [k8s/overlays/local/](k8s/overlays/local/) into the `nawex-local` namespace.
 
+## Development
+
+```bash
+# Optional: install pre-commit hooks (ruff, terraform fmt, shellcheck, hadolint, ...)
+pip install pre-commit && pre-commit install
+
+# Python lint + tests (same as CI)
+pip install ruff pytest -r app/nawex-api/requirements.txt -r finops-aiops/python/requirements.txt
+ruff check . && ruff format --check . && pytest -q
+
+# Validate every Kustomize overlay
+for o in k8s/overlays/*; do kustomize build "$o" >/dev/null; done
+
+# Copy the env file and fill in SLACK_WEBHOOK_URL etc.
+cp .env.example .env
+```
+
 ## Notes
 
 - Replace the placeholder GitHub repository URL in the files under [gitops/](gitops/) before using Argo CD.
-- The environment overlays now target separate namespaces for safer side-by-side syncs; real deployments may still separate environments further by cluster or account boundary.
+- The environment overlays target separate namespaces for safer side-by-side syncs; real deployments may still separate environments further by cluster or account boundary.
 - The local GitOps harness defaults `LOCAL_GIT_HOST` to `host.docker.internal`, which works well on Docker Desktop. Override it if your local container runtime exposes the host differently.
-- The hybrid model now includes an [on-prem Argo CD application](gitops/apps/onprem-platform.yaml), an [on-prem Kubernetes overlay](k8s/overlays/onprem/), and supporting [Terraform](infra/terraform/envs/onprem/) and [Ansible inventory](infra/ansible/inventories/onprem/) definitions.
+- The hybrid model includes an [on-prem Argo CD application](gitops/apps/onprem-platform.yaml), an [on-prem Kubernetes overlay](k8s/overlays/onprem/), and supporting [Terraform](infra/terraform/envs/onprem/) and [Ansible inventory](infra/ansible/inventories/onprem/) definitions.
+- Prod's Argo CD application intentionally runs with `automated: false` for `prune` and `selfHeal` — prod changes require an explicit sync gate. Dev, staging, and onprem are fully automated.

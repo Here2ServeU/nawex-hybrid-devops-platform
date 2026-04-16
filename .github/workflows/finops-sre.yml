@@ -5,6 +5,13 @@ on:
     - cron: "0 12 * * 1"
   workflow_dispatch:
 
+concurrency:
+  group: finops-sre
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
 jobs:
   analyze:
     runs-on: ubuntu-latest
@@ -13,11 +20,38 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Rightsizing analysis
-        run: python finops-aiops/python/rightsizing_engine.py
-      - name: Budget drift prediction
-        run: python finops-aiops/python/budget_burn_predictor.py
-      - name: SLO risk check
-        run: python finops-aiops/python/slo_risk_checker.py
+          cache: pip
+          cache-dependency-path: finops-aiops/python/requirements.txt
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f finops-aiops/python/requirements.txt ]; then
+            pip install -r finops-aiops/python/requirements.txt
+          fi
+      - name: Rightsizing
+        run: python finops-aiops/python/rightsizing_engine.py --output rightsizing.json
+      - name: Budget burn
+        run: python finops-aiops/python/budget_burn_predictor.py --output budget.json
+      - name: SLO risk
+        run: python finops-aiops/python/slo_risk_checker.py --output slo.json
       - name: Anomaly detection
-        run: python finops-aiops/python/anomaly_detector.py
+        run: python finops-aiops/python/anomaly_detector.py --output anomaly.json
+      - name: Upload reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: finops-sre-reports
+          path: "*.json"
+      - name: Notify Slack on high-risk findings
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          if [ -z "${SLACK_WEBHOOK_URL:-}" ]; then
+            echo "SLACK_WEBHOOK_URL not configured, skipping Slack notification"
+            exit 0
+          fi
+          python finops-aiops/python/notify_slack.py \
+            --webhook "$SLACK_WEBHOOK_URL" \
+            --report rightsizing.json \
+            --report budget.json \
+            --report slo.json \
+            --report anomaly.json

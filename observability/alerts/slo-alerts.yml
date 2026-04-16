@@ -1,10 +1,126 @@
 groups:
   - name: nawex-slo
+    interval: 30s
     rules:
-      - alert: AvailabilityBudgetBurn
-        expr: 1 > 0
-        for: 5m
+      # Multi-window multi-burn-rate error-budget burn for the API.
+      # See: https://sre.google/workbook/alerting-on-slos/
+      - alert: NawexApiFastBurn
+        expr: |
+          (
+            sum(rate(nawex_api_requests_total{status=~"5.."}[5m]))
+            /
+            sum(rate(nawex_api_requests_total[5m]))
+          ) > (14.4 * (1 - 0.999))
+          and
+          (
+            sum(rate(nawex_api_requests_total{status=~"5.."}[1h]))
+            /
+            sum(rate(nawex_api_requests_total[1h]))
+          ) > (14.4 * (1 - 0.999))
+        for: 2m
+        labels:
+          severity: critical
+          service: nawex-api
+          remediation_action: rollback_last_deploy
+        annotations:
+          summary: "nawex-api burning error budget ~14x (1h window)"
+          description: |
+            nawex-api 5xx rate is exhausting the 99.9% availability budget fast. Likely cause:
+            a bad deploy or an upstream dependency. The remediation action `rollback_last_deploy`
+            triggers an Argo CD rollback to the previously healthy revision.
+          runbook_url: "https://github.com/Here2ServeU/nawex-hybrid-devops-platform/blob/main/runbooks/rollback.md"
+
+      - alert: NawexApiSlowBurn
+        expr: |
+          (
+            sum(rate(nawex_api_requests_total{status=~"5.."}[30m]))
+            /
+            sum(rate(nawex_api_requests_total[30m]))
+          ) > (6 * (1 - 0.999))
+          and
+          (
+            sum(rate(nawex_api_requests_total{status=~"5.."}[6h]))
+            /
+            sum(rate(nawex_api_requests_total[6h]))
+          ) > (6 * (1 - 0.999))
+        for: 15m
         labels:
           severity: warning
+          service: nawex-api
+          remediation_action: investigate_slo_burn
         annotations:
-          summary: "Starter alert placeholder for NAWEX SLO burn detection"
+          summary: "nawex-api burning error budget ~6x (6h window)"
+          description: |
+            Slow, sustained 5xx rate elevation. The `investigate_slo_burn` remediation scales
+            the API up by one replica and tails recent error logs.
+          runbook_url: "https://github.com/Here2ServeU/nawex-hybrid-devops-platform/blob/main/runbooks/incident-response.md"
+
+      - alert: NawexApiP95LatencyHigh
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum by (le) (rate(nawex_api_request_duration_seconds_bucket[5m]))
+          ) > 0.5
+        for: 10m
+        labels:
+          severity: warning
+          service: nawex-api
+          remediation_action: investigate_slo_burn
+        annotations:
+          summary: "nawex-api p95 latency >500ms for 10 minutes"
+          description: |
+            The API is exceeding its p95 latency target. Check downstream dependencies,
+            GC pressure, or pod saturation.
+          runbook_url: "https://github.com/Here2ServeU/nawex-hybrid-devops-platform/blob/main/runbooks/k8s-troubleshooting.md"
+
+      - alert: NawexPodCrashLooping
+        expr: |
+          max_over_time(kube_pod_container_status_restarts_total{namespace=~"nawex-.*"}[15m])
+          - min_over_time(kube_pod_container_status_restarts_total{namespace=~"nawex-.*"}[15m])
+          >= 3
+        for: 5m
+        labels:
+          severity: critical
+          service: nawex-platform
+          remediation_action: rollback_last_deploy
+        annotations:
+          summary: "Pod {{ $labels.pod }} restarted 3+ times in 15m"
+          description: |
+            A pod in the nawex platform namespace is crashlooping. If the restarts correlate
+            with the most recent deploy, approve `rollback_last_deploy`. Otherwise deny and
+            inspect container logs directly.
+          runbook_url: "https://github.com/Here2ServeU/nawex-hybrid-devops-platform/blob/main/runbooks/k8s-troubleshooting.md"
+
+      - alert: NawexWorkerMemoryHigh
+        expr: |
+          (
+            container_memory_working_set_bytes{namespace=~"nawex-.*", container="nawex-worker"}
+            /
+            container_spec_memory_limit_bytes{namespace=~"nawex-.*", container="nawex-worker"}
+          ) > 0.9
+        for: 10m
+        labels:
+          severity: warning
+          service: nawex-worker
+          remediation_action: worker_heap_profile
+        annotations:
+          summary: "nawex-worker at >90% memory limit"
+          description: |
+            The worker is running hot against its memory limit. The `worker_heap_profile`
+            remediation captures a heap snapshot and restarts the pod.
+          runbook_url: "https://github.com/Here2ServeU/nawex-hybrid-devops-platform/blob/main/runbooks/k8s-troubleshooting.md"
+
+      - alert: NawexBudgetBurnHigh
+        expr: nawex_cost_drift_percent > 20
+        for: 30m
+        labels:
+          severity: warning
+          service: nawex-finops
+          remediation_action: scale_down_offhours
+        annotations:
+          summary: "{{ $labels.environment }} cost drift {{ $value }}% over budget"
+          description: |
+            Environment {{ $labels.environment }} is projected to exceed budget by >20%.
+            The `scale_down_offhours` remediation reduces worker replicas outside business
+            hours. Requires approval — do not auto-apply.
+          runbook_url: "https://github.com/Here2ServeU/nawex-hybrid-devops-platform/blob/main/runbooks/cost-optimization.md"

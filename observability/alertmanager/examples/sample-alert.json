@@ -1,0 +1,36 @@
+{
+  "version": "4",
+  "groupKey": "{}:{alertname=\"NawexApiFastBurn\"}",
+  "status": "firing",
+  "receiver": "slack-critical",
+  "groupLabels": {"alertname": "NawexApiFastBurn"},
+  "commonLabels": {
+    "alertname": "NawexApiFastBurn",
+    "severity": "critical",
+    "service": "nawex-api"
+  },
+  "commonAnnotations": {
+    "summary": "nawex-api burning error budget ~14x (1h window)"
+  },
+  "externalURL": "http://alertmanager.local:9093",
+  "alerts": [
+    {
+      "status": "firing",
+      "fingerprint": "3f1a9b2c4d5e6f70",
+      "startsAt": "2026-04-16T12:00:00Z",
+      "endsAt": "0001-01-01T00:00:00Z",
+      "labels": {
+        "alertname": "NawexApiFastBurn",
+        "severity": "critical",
+        "service": "nawex-api",
+        "remediation_action": "rollback_last_deploy"
+      },
+      "annotations": {
+        "summary": "nawex-api burning error budget ~14x (1h window)",
+        "description": "nawex-api 5xx rate is exhausting the 99.9% availability budget fast.",
+        "runbook_url": "https://github.com/Here2ServeU/nawex-hybrid-devops-platform/blob/main/runbooks/rollback.md"
+      },
+      "generatorURL": "http://prometheus.local:9090"
+    }
+  ]
+}

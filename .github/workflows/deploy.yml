@@ -2,27 +2,42 @@ name: deploy
 
 on:
   workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment overlay
+        required: true
+        default: dev
+        type: choice
+        options: [dev, staging, prod, onprem]
+
+concurrency:
+  group: deploy-${{ github.event.inputs.environment }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
 
 jobs:
   gitops-handoff:
+    name: GitOps handoff (${{ github.event.inputs.environment }})
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Validate Argo CD app manifests exist
         run: |
-          test -f gitops/argocd/project.yaml
-          test -f gitops/argocd/root-application.yaml
-          test -f gitops/argocd/apps/dev-platform.yaml
-          test -f gitops/argocd/apps/staging-platform.yaml
-          test -f gitops/argocd/apps/prod-platform.yaml
-      - name: Validate environment overlays exist
+          set -euo pipefail
+          test -f gitops/project.yaml
+          test -f gitops/root-application.yaml
+          test -f "gitops/apps/${{ github.event.inputs.environment }}-platform.yaml"
+      - name: Validate environment overlay exists
+        run: test -f "k8s/overlays/${{ github.event.inputs.environment }}/kustomization.yaml"
+      - name: Render overlay (sanity check)
         run: |
-          test -f k8s/overlays/dev/kustomization.yaml
-          test -f k8s/overlays/staging/kustomization.yaml
-          test -f k8s/overlays/prod/kustomization.yaml
+          curl -sSLo /tmp/kustomize.tar.gz https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv5.5.0/kustomize_v5.5.0_linux_amd64.tar.gz
+          tar -xzf /tmp/kustomize.tar.gz -C /tmp
+          /tmp/kustomize build "k8s/overlays/${{ github.event.inputs.environment }}" > /tmp/rendered.yaml
+          wc -l /tmp/rendered.yaml
       - name: GitOps deployment note
         run: |
-          echo "GitHub Actions validated the GitOps payload."
-          echo "Argo CD is expected to reconcile cluster state from this repository."
-      - name: Smoke test placeholder
-        run: bash scripts/smoke_test.sh
+          echo "CI validated the GitOps payload for ${{ github.event.inputs.environment }}."
+          echo "Argo CD reconciles cluster state from gitops/apps/${{ github.event.inputs.environment }}-platform.yaml."

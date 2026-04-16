@@ -1,7 +1,3 @@
-terraform {
-  required_version = ">= 1.7.0"
-}
-
 module "cost_tags" {
   source      = "../../modules/nawex-cost-tags"
   environment = "dev"
