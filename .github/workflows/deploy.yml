@@ -8,7 +8,7 @@ on:
         required: true
         default: dev
         type: choice
-        options: [dev, staging, prod, onprem]
+        options: [dev, staging, prod, onprem, aws-eks, azure-aks]
 
 concurrency:
   group: deploy-${{ github.event.inputs.environment }}

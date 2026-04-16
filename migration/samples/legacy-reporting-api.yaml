@@ -1,0 +1,41 @@
+apiVersion: nawex.io/v1
+kind: WorkloadProfile
+metadata:
+  name: legacy-reporting-api
+  source:
+    hypervisor: vsphere
+    vm: reporting-vm-01
+    datacenter: nawex-dc
+spec:
+  runtime: python3.12
+  entrypoint:
+    - gunicorn
+    - --bind
+    - "0.0.0.0:8080"
+    - --workers
+    - "2"
+    - report_server:app
+  expose:
+    - port: 8080
+      protocol: TCP
+  env:
+    - name: REPORT_DB_DSN
+      valueFrom: secret:reporting-db/dsn
+    - name: LOG_LEVEL
+      value: INFO
+  resources:
+    cpu_millicores: 500
+    memory_mib: 1024
+  dependencies:
+    packages_deb: ["libpq5", "curl"]
+    python_requirements:
+      - "flask==3.1.0"
+      - "gunicorn==23.0.0"
+      - "psycopg2-binary==2.9.9"
+  health:
+    liveness: /healthz
+    readiness: /readyz
+  target:
+    cluster: aws-eks
+    namespace: nawex-migrated
+    replicas: 3

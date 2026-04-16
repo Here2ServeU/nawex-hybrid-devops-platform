@@ -1,0 +1,11 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: nawex-migrated
+resources:
+  - ../../base
+  - migrated-namespace.yaml
+patches:
+  - path: patch-api.yaml
+commonLabels:
+  nawex.io/target-cluster: azure-aks
+  nawex.io/workload-class: migrated

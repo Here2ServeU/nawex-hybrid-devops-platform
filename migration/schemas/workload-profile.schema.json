@@ -1,0 +1,110 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "NawexWorkloadProfile",
+  "type": "object",
+  "required": ["apiVersion", "kind", "metadata", "spec"],
+  "properties": {
+    "apiVersion": {"const": "nawex.io/v1"},
+    "kind": {"const": "WorkloadProfile"},
+    "metadata": {
+      "type": "object",
+      "required": ["name"],
+      "properties": {
+        "name": {"type": "string", "pattern": "^[a-z][a-z0-9-]{1,52}$"},
+        "source": {
+          "type": "object",
+          "properties": {
+            "hypervisor": {"enum": ["vsphere", "hyperv", "kvm", "other"]},
+            "vm": {"type": "string"},
+            "datacenter": {"type": "string"}
+          }
+        }
+      }
+    },
+    "spec": {
+      "type": "object",
+      "required": ["runtime", "entrypoint", "target"],
+      "properties": {
+        "runtime": {"enum": [
+          "python3.11", "python3.12",
+          "node18", "node20",
+          "java17", "java21",
+          "go1.22",
+          "dotnet8",
+          "generic-debian"
+        ]},
+        "entrypoint": {
+          "type": "array",
+          "items": {"type": "string"},
+          "minItems": 1
+        },
+        "expose": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["port"],
+            "properties": {
+              "port": {"type": "integer", "minimum": 1, "maximum": 65535},
+              "protocol": {"enum": ["TCP", "UDP"], "default": "TCP"}
+            }
+          }
+        },
+        "env": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name"],
+            "properties": {
+              "name": {"type": "string"},
+              "value": {"type": "string"},
+              "valueFrom": {"type": "string", "description": "e.g. secret:name/key or configmap:name/key"}
+            }
+          }
+        },
+        "resources": {
+          "type": "object",
+          "properties": {
+            "cpu_millicores": {"type": "integer", "minimum": 10},
+            "memory_mib": {"type": "integer", "minimum": 16}
+          }
+        },
+        "storage": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["mount", "size_gib"],
+            "properties": {
+              "mount": {"type": "string"},
+              "size_gib": {"type": "integer", "minimum": 1},
+              "access_mode": {"enum": ["ReadWriteOnce", "ReadWriteMany"], "default": "ReadWriteOnce"}
+            }
+          }
+        },
+        "dependencies": {
+          "type": "object",
+          "properties": {
+            "packages_deb": {"type": "array", "items": {"type": "string"}},
+            "python_requirements": {"type": "array", "items": {"type": "string"}},
+            "npm_packages": {"type": "array", "items": {"type": "string"}}
+          }
+        },
+        "health": {
+          "type": "object",
+          "properties": {
+            "liveness": {"type": "string"},
+            "readiness": {"type": "string"}
+          }
+        },
+        "target": {
+          "type": "object",
+          "required": ["cluster"],
+          "properties": {
+            "cluster": {"enum": ["aws-eks", "azure-aks", "onprem"]},
+            "namespace": {"type": "string", "default": "nawex-migrated"},
+            "replicas": {"type": "integer", "minimum": 1, "default": 2}
+          }
+        }
+      }
+    }
+  }
+}

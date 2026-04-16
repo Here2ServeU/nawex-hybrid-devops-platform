@@ -1,0 +1,31 @@
+# Dynamic vSphere inventory.
+#
+# Usage:
+#   pip install ansible-core requests pyvmomi
+#   export VMWARE_HOST=vcenter.nawex.local VMWARE_USER=... VMWARE_PASSWORD=...
+#   ansible-inventory -i infra/ansible/inventories/onprem/vmware.yml --graph
+#
+# Requires the community.vmware collection:
+#   ansible-galaxy collection install community.vmware
+plugin: community.vmware.vmware_vm_inventory
+strict: false
+validate_certs: false
+with_tags: true
+properties:
+  - name
+  - config.guestId
+  - config.hardware.numCPU
+  - config.hardware.memoryMB
+  - guest.ipAddress
+  - guest.hostName
+hostnames:
+  - config.name
+compose:
+  ansible_host: guest.ipAddress | default(config.name)
+keyed_groups:
+  - key: config.guestId
+    prefix: guest
+  - key: summary.runtime.powerState
+    prefix: power
+filters:
+  - '"nawex" in config.name'

@@ -32,7 +32,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        env: [dev, staging, prod, onprem]
+        env: [dev, staging, prod, onprem, aws-eks, azure-aks]
     defaults:
       run:
         working-directory: infra/terraform/envs/${{ matrix.env }}
@@ -43,7 +43,9 @@ jobs:
           terraform_version: 1.9.8
       - run: terraform init -backend=false
       - run: terraform validate
-      - run: terraform plan -lock=false -input=false
+      - name: Terraform plan (skipped for cloud envs without creds)
+        if: matrix.env != 'aws-eks' && matrix.env != 'azure-aks' && matrix.env != 'onprem'
+        run: terraform plan -lock=false -input=false
 
   tfsec:
     name: tfsec

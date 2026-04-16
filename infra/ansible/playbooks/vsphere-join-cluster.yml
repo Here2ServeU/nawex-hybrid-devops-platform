@@ -1,0 +1,49 @@
+---
+# Joins vSphere-hosted VMs to the on-prem Kubernetes cluster after the baseline
+# has been applied. Expects the cluster control plane to already exist and the
+# kubeadm join token + cert hash to be passed in as extra vars (or pulled from
+# a central secret store).
+- name: Apply baseline to vSphere-hosted nodes
+  hosts: vsphere_vms
+  become: true
+  roles:
+    - common
+
+- name: Join vSphere VMs to on-prem Kubernetes cluster
+  hosts: vsphere_vms
+  become: true
+  vars:
+    kubeadm_control_plane_endpoint: "{{ lookup('env', 'NAWEX_ONPREM_KUBE_ENDPOINT') }}"
+    kubeadm_join_token: "{{ lookup('env', 'NAWEX_ONPREM_KUBE_JOIN_TOKEN') }}"
+    kubeadm_ca_cert_hash: "{{ lookup('env', 'NAWEX_ONPREM_KUBE_CA_HASH') }}"
+  tasks:
+    - name: Ensure kubeadm/kubelet are installed
+      ansible.builtin.package:
+        name:
+          - kubeadm
+          - kubelet
+          - kubectl
+          - containerd
+        state: present
+
+    - name: Ensure containerd is enabled and running
+      ansible.builtin.service:
+        name: containerd
+        enabled: true
+        state: started
+
+    - name: Preflight — confirm required join metadata
+      ansible.builtin.assert:
+        that:
+          - kubeadm_control_plane_endpoint | length > 0
+          - kubeadm_join_token | length > 0
+          - kubeadm_ca_cert_hash | length > 0
+        fail_msg: "Set NAWEX_ONPREM_KUBE_ENDPOINT / _TOKEN / _CA_HASH before running."
+
+    - name: Join cluster (idempotent — skipped when already joined)
+      ansible.builtin.command:
+        cmd: >
+          kubeadm join {{ kubeadm_control_plane_endpoint }}
+          --token {{ kubeadm_join_token }}
+          --discovery-token-ca-cert-hash sha256:{{ kubeadm_ca_cert_hash }}
+        creates: /etc/kubernetes/kubelet.conf

@@ -21,11 +21,15 @@ select = [
   "S",              # bandit security
 ]
 ignore = [
+  "PLR0911",        # too many return statements — fine for scalar parsers
+  "PLR0912",        # too many branches
   "PLR0913",        # too many arguments
   "PLR2004",        # magic numbers: noisy for deterministic reports / thresholds
   "PLW0603",        # global statement (shutdown flag pattern)
+  "PLC0415",        # non-top-level imports — used for optional pyvmomi / pyyaml
   "S101",           # assert used (fine in tests)
   "S603", "S607",   # subprocess without shell=True (we use list args on purpose)
+  "S501",           # TLS verify disabled (vcenter self-signed — gated by CLI flag)
 ]
 
 [tool.ruff.lint.per-file-ignores]
@@ -34,6 +38,6 @@ ignore = [
 
 [tool.pytest.ini_options]
 minversion = "8.0"
-testpaths = ["finops-aiops/python/tests", "app/nawex-api/tests"]
+testpaths = ["finops-aiops/python/tests", "app/nawex-api/tests", "migration/tests"]
 addopts = "-ra --strict-markers --import-mode=importlib"
-pythonpath = ["app/nawex-api", "finops-aiops/python", "scripts"]
+pythonpath = ["app/nawex-api", "finops-aiops/python", "scripts", "migration/containerize", "migration/assess"]

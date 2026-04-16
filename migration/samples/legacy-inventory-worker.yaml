@@ -1,0 +1,27 @@
+apiVersion: nawex.io/v1
+kind: WorkloadProfile
+metadata:
+  name: legacy-inventory-worker
+  source:
+    hypervisor: vsphere
+    vm: inventory-worker-vm-02
+    datacenter: nawex-dc
+spec:
+  runtime: node20
+  entrypoint: ["node", "/app/worker.js"]
+  env:
+    - name: QUEUE_URL
+      valueFrom: secret:inventory/queue-url
+    - name: NODE_ENV
+      value: production
+  resources:
+    cpu_millicores: 300
+    memory_mib: 512
+  dependencies:
+    npm_packages:
+      - "aws-sdk@2.1692.0"
+      - "pino@9.4.0"
+  target:
+    cluster: azure-aks
+    namespace: nawex-migrated
+    replicas: 2

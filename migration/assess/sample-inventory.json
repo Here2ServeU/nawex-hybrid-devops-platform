@@ -1,0 +1,26 @@
+[
+  {
+    "name": "reporting-vm-01",
+    "guest_os": "Ubuntu Linux 22.04",
+    "cpu_count": 4,
+    "memory_mib": 8192,
+    "ip": "192.168.50.21",
+    "datacenter": "nawex-dc"
+  },
+  {
+    "name": "inventory-worker-vm-02",
+    "guest_os": "Ubuntu Linux 22.04",
+    "cpu_count": 2,
+    "memory_mib": 4096,
+    "ip": "192.168.50.22",
+    "datacenter": "nawex-dc"
+  },
+  {
+    "name": "billing-api-vm-03",
+    "guest_os": "RHEL 9",
+    "cpu_count": 8,
+    "memory_mib": 16384,
+    "ip": "192.168.50.23",
+    "datacenter": "nawex-dc"
+  }
+]
