@@ -1,0 +1,36 @@
+apiVersion: nawex.io/v1
+kind: WorkloadProfile
+metadata:
+  name: legacy-billing-api
+  source:
+    hypervisor: vsphere
+    vm: billing-api-vm-03
+    datacenter: nawex-dc
+spec:
+  runtime: java17
+  entrypoint:
+    - java
+    - -jar
+    - /app/billing-api.jar
+  expose:
+    - port: 8080
+      protocol: TCP
+  env:
+    - name: DB_URL
+      valueFrom: secret:billing-db/jdbc-url
+    - name: JAVA_TOOL_OPTIONS
+      value: "-Xms512m -Xmx1536m -XX:+UseContainerSupport"
+  resources:
+    cpu_millicores: 1000
+    memory_mib: 2048
+  dependencies:
+    packages_deb: ["ca-certificates"]
+  health:
+    liveness: /actuator/health/liveness
+    readiness: /actuator/health/readiness
+  target:
+    cluster: openshift
+    namespace: nawex-migrated
+    replicas: 2
+    expose_externally: true
+    tls_termination: edge

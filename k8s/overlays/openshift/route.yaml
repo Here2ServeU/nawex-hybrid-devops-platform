@@ -1,0 +1,26 @@
+# OpenShift Route for the API service.
+#
+# Routes are the OpenShift-native ingress primitive. They live in
+# route.openshift.io/v1 and are served by the default HAProxy-based ingress
+# controller. Edge-terminated TLS here means the router handles TLS and talks
+# HTTP to the pod — flip to `reencrypt` or `passthrough` if the pod should do
+# its own TLS.
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: nawex-api
+  namespace: nawex-migrated
+  annotations:
+    haproxy.router.openshift.io/timeout: "30s"
+    haproxy.router.openshift.io/balance: "roundrobin"
+spec:
+  to:
+    kind: Service
+    name: nawex-api
+    weight: 100
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+  wildcardPolicy: None

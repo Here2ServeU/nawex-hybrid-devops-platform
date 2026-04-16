@@ -6,7 +6,7 @@ Enterprise hybrid DevOps, FinOps, SRE, AIOps, and GitOps reference implementatio
 
 This repository shows how a mission platform moves from infrastructure provisioning to application delivery and then into operations across both cloud and on-prem environments. It combines Terraform, Ansible, Kubernetes, Argo CD, observability, runbooks, and Python-based FinOps and AIOps utilities in one delivery model.
 
-It also demonstrates a **VM-to-Kubernetes migration path** (option 1: containerize): on-prem vSphere VMs are inventoried, rebuilt as containers, and deployed to **EKS (AWS)** or **AKS (Azure)** via GitOps. See [migration/](migration/) and [runbooks/vm-to-k8s-migration.md](runbooks/vm-to-k8s-migration.md).
+It also demonstrates a **VM-to-Kubernetes migration path** (option 1: containerize): on-prem vSphere VMs are inventoried, rebuilt as containers, and deployed to **EKS (AWS)**, **AKS (Azure)**, or **OpenShift** (ROSA on AWS, or self-managed IPI on vSphere) via GitOps. See [migration/](migration/) and [runbooks/vm-to-k8s-migration.md](runbooks/vm-to-k8s-migration.md).
 
 ## How The Platform Works
 
@@ -22,16 +22,19 @@ flowchart LR
     TF --> VS[vSphere VMs on-prem]
     TF --> EKS[AWS EKS cluster]
     TF --> AKS[Azure AKS cluster]
+    TF --> OCP[OpenShift: ROSA or vSphere IPI]
     TF --> CLOUD[Cloud envs: dev, staging, prod]
     ANS --> VS
     ANS --> CLOUD
     VS --> K8S
     EKS --> K8S
     AKS --> K8S
+    OCP --> K8S
     CLOUD --> K8S
     VS --> MIG[migration/ assess + containerize]
     MIG --> EKS
     MIG --> AKS
+    MIG --> OCP
     K8S --> APPS[Web UI, API, Worker, migrated workloads]
     APPS --> OBS[Prometheus, Grafana, AlertManager → Slack]
     OBS --> OPS[Runbooks and SRE response]
@@ -43,24 +46,24 @@ flowchart LR
 
 - [architecture/](architecture/) documents the target platform design, architecture views, and SLI/SLO model.
 - [app/](app/) contains the deployable workloads: [web UI](app/nawex-web-ui/), [API](app/nawex-api/), and [worker](app/nawex-worker/).
-- [infra/terraform/](infra/terraform/) defines reusable infrastructure modules and environment compositions: cloud envs (dev, staging, prod), the [on-prem vSphere environment](infra/terraform/envs/onprem/) (uses the [nawex-vsphere module](infra/terraform/modules/nawex-vsphere/)), and migration target clusters [AWS EKS](infra/terraform/envs/aws-eks/) and [Azure AKS](infra/terraform/envs/azure-aks/).
+- [infra/terraform/](infra/terraform/) defines reusable infrastructure modules and environment compositions: cloud envs (dev, staging, prod), the [on-prem vSphere environment](infra/terraform/envs/onprem/) (uses the [nawex-vsphere module](infra/terraform/modules/nawex-vsphere/)), migration target clusters [AWS EKS](infra/terraform/envs/aws-eks/) and [Azure AKS](infra/terraform/envs/azure-aks/), and OpenShift targets [ROSA](infra/terraform/envs/openshift-rosa/) (managed on AWS) and [self-managed IPI on vSphere](infra/terraform/envs/openshift-vsphere/).
 - [infra/ansible/](infra/ansible/) holds Linux baseline automation, shared roles, and per-environment inventories. On-prem supports a [static host list](infra/ansible/inventories/onprem/hosts.yml), a [dynamic vSphere inventory](infra/ansible/inventories/onprem/vmware.yml), and a [kubeadm-join playbook](infra/ansible/playbooks/vsphere-join-cluster.yml).
-- [k8s/](k8s/) contains the Kubernetes base manifests and overlays for [dev](k8s/overlays/dev/), [staging](k8s/overlays/staging/), [prod](k8s/overlays/prod/), [onprem](k8s/overlays/onprem/), [aws-eks](k8s/overlays/aws-eks/), and [azure-aks](k8s/overlays/azure-aks/).
+- [k8s/](k8s/) contains the Kubernetes base manifests and overlays for [dev](k8s/overlays/dev/), [staging](k8s/overlays/staging/), [prod](k8s/overlays/prod/), [onprem](k8s/overlays/onprem/), [aws-eks](k8s/overlays/aws-eks/), [azure-aks](k8s/overlays/azure-aks/), and [openshift](k8s/overlays/openshift/) (ships a `Route`, an SCC RoleBinding for non-root pods, and PSA-restricted namespace labels).
 - [migration/](migration/) contains the VM-to-container migration tooling: [assess](migration/assess/) (inventory vCenter VMs → WorkloadProfile stubs), [containerize](migration/containerize/) (WorkloadProfile → Dockerfile + K8s manifest), and [samples](migration/samples/).
 - [gitops/](gitops/) contains the Argo CD GitOps layer, including the [root application](gitops/root-application.yaml), [project](gitops/project.yaml), the [environment apps](gitops/apps/), and the [local test harness](gitops/local/).
 - [observability/](observability/) contains Prometheus configuration, Grafana dashboards, [multi-burn-rate SLO alerts](observability/alerts/slo-alerts.yml), and an [AlertManager → Slack](observability/alertmanager/alertmanager.yml) pipeline.
 - [finops-aiops/](finops-aiops/) contains Python utilities for anomaly detection, rightsizing, budget burn prediction, and SLO risk analysis.
-- [runbooks/](runbooks/) contains operational procedures for incidents, rollback, Kubernetes troubleshooting, cost response, and the [Slack alerting flow](runbooks/slack-alerting.md).
+- [runbooks/](runbooks/) contains operational procedures for incidents, rollback, Kubernetes troubleshooting, cost response, the [Slack alerting flow](runbooks/slack-alerting.md), [VM→K8s migration](runbooks/vm-to-k8s-migration.md), and [OpenShift-specific operations](runbooks/openshift-operations.md).
 - [scripts/](scripts/) contains bootstrap, deployment, smoke-test, and incident-response helpers, plus per-alert [remediation scripts](scripts/remediations/).
 
 ## What This Proves
 
 - Infrastructure as code with reusable Terraform modules across **vSphere, AWS, and Azure**
 - Configuration management with Ansible, including a dynamic vSphere inventory
-- Kubernetes packaging with base + overlay separation across **six targets** (dev, staging, prod, onprem, aws-eks, azure-aks)
+- Kubernetes packaging with base + overlay separation across **seven targets** (dev, staging, prod, onprem, aws-eks, azure-aks, openshift)
 - GitOps delivery with Argo CD application manifests, scoped `AppProject` roles, per-env retry policy
 - Hybrid environment management across cloud and on-prem targets, plus a migration bridge between them
-- **VM-to-K8s migration (option 1 — containerize):** assess vSphere VMs → generate Dockerfile + manifests → deploy to EKS/AKS via GitOps
+- **VM-to-K8s migration (option 1 — containerize):** assess vSphere VMs → generate Dockerfile + manifests → deploy to EKS, AKS, or OpenShift (with Route + SCC binding) via GitOps
 - Observability, alerting with Slack approve/deny flow, and SRE operating practices
 - FinOps and AIOps automation embedded into the platform workflow
 

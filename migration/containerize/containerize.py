@@ -289,6 +289,8 @@ def render_k8s(profile: dict[str, Any]) -> str:
         for p in expose
     )
 
+    route_block = _render_route_block(name, namespace, primary_port, target)
+
     return f"""---
 apiVersion: apps/v1
 kind: Deployment
@@ -348,6 +350,37 @@ spec:
     app.kubernetes.io/name: {name}
   ports:
 {svc_ports_yaml}
+{route_block}"""
+
+
+def _render_route_block(
+    name: str, namespace: str, primary_port: int, target: dict[str, Any]
+) -> str:
+    """Emit an OpenShift Route when the target is openshift and exposure is requested.
+
+    Returns an empty string for non-openshift targets or when expose_externally is
+    false — keeps the Service cluster-internal (the default, safer posture).
+    """
+    if target.get("cluster") != "openshift" or not target.get("expose_externally", False):
+        return ""
+    termination = target.get("tls_termination", "edge")
+    return f"""---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: {name}
+  namespace: {namespace}
+spec:
+  to:
+    kind: Service
+    name: {name}
+    weight: 100
+  port:
+    targetPort: http-{primary_port}
+  tls:
+    termination: {termination}
+    insecureEdgeTerminationPolicy: Redirect
+  wildcardPolicy: None
 """
 
 

@@ -5,7 +5,9 @@ from pathlib import Path
 import containerize  # type: ignore[import-not-found]
 import pytest
 
-SAMPLE = Path(__file__).resolve().parents[1] / "samples" / "legacy-reporting-api.yaml"
+SAMPLES = Path(__file__).resolve().parents[1] / "samples"
+SAMPLE = SAMPLES / "legacy-reporting-api.yaml"
+OCP_SAMPLE = SAMPLES / "legacy-billing-api-openshift.yaml"
 
 
 def test_parse_sample_yaml_roundtrip() -> None:
@@ -51,3 +53,26 @@ def test_render_kustomization_includes_target_label() -> None:
 )
 def test_runtime_base_mapping(runtime: str, expected: str) -> None:
     assert containerize.RUNTIME_BASE[runtime] == expected
+
+
+def test_openshift_target_emits_route() -> None:
+    data = containerize.parse_yaml(OCP_SAMPLE.read_text(encoding="utf-8"))
+    k8s = containerize.render_k8s(data)
+    assert "kind: Route" in k8s
+    assert "route.openshift.io/v1" in k8s
+    assert "termination: edge" in k8s
+    assert "insecureEdgeTerminationPolicy: Redirect" in k8s
+
+
+def test_non_openshift_target_has_no_route() -> None:
+    data = containerize.parse_yaml(SAMPLE.read_text(encoding="utf-8"))
+    k8s = containerize.render_k8s(data)
+    assert "kind: Route" not in k8s
+    assert "route.openshift.io" not in k8s
+
+
+def test_openshift_without_external_exposure_has_no_route() -> None:
+    data = containerize.parse_yaml(OCP_SAMPLE.read_text(encoding="utf-8"))
+    data["spec"]["target"]["expose_externally"] = False
+    k8s = containerize.render_k8s(data)
+    assert "kind: Route" not in k8s

@@ -1,0 +1,13 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: nawex-migrated
+resources:
+  - ../../base
+  - namespace.yaml
+  - route.yaml
+  - scc-binding.yaml
+patches:
+  - path: patch-api.yaml
+commonLabels:
+  nawex.io/target-cluster: openshift
+  nawex.io/workload-class: migrated

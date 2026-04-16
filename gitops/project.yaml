@@ -38,6 +38,10 @@ spec:
       kind: NetworkPolicy
     - group: policy
       kind: PodDisruptionBudget
+    - group: rbac.authorization.k8s.io
+      kind: RoleBinding
+    - group: route.openshift.io
+      kind: Route
   orphanedResources:
     warn: true
   roles:

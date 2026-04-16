@@ -1,0 +1,2 @@
+# Rendered install-config.yaml and openshift-install state — contain secrets.
+build/

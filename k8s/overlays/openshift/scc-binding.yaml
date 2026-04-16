@@ -1,0 +1,24 @@
+# Bind the nawex-api ServiceAccount to the `nonroot-v2` SecurityContextConstraint.
+#
+# OpenShift's default `restricted-v2` SCC assigns an arbitrary UID in a project-
+# specific range and ignores any runAsUser value in the pod spec. Our hardened
+# base manifest pins runAsUser=10001 so that the image (which expects uid 10001
+# to own /app and the installed Python packages) keeps working. `nonroot-v2`
+# allows any non-zero uid specified in the pod spec while keeping every other
+# guardrail from `restricted-v2` intact.
+#
+# This is the minimum additional privilege needed — do NOT switch to `anyuid`.
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: nawex-api-nonroot-scc
+  namespace: nawex-migrated
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:openshift:scc:nonroot-v2
+subjects:
+  - kind: ServiceAccount
+    name: nawex-api
+    namespace: nawex-migrated

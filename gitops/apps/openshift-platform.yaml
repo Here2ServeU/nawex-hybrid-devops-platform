@@ -1,0 +1,28 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: nawex-openshift
+  namespace: argocd
+spec:
+  project: nawex-platform
+  source:
+    repoURL: https://github.com/Here2ServeU/nawex-hybrid-devops-platform.git
+    targetRevision: main
+    path: k8s/overlays/openshift
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: nawex-migrated
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ApplyOutOfSyncOnly=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 3m
+  revisionHistoryLimit: 10
