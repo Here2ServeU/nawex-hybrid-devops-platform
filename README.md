@@ -1,6 +1,17 @@
 # nawex-hybrid-devops-platform
 
-Enterprise hybrid DevOps, FinOps, SRE, AIOps, and GitOps reference implementation for a fictional regulated mission data platform.
+Enterprise hybrid DevOps, FinOps, SRE, AIOps, and GitOps reference implementation for a regulated mission data platform.
+
+## What NAWEX Means
+
+**NAWEX — Naweji Enterprise Excellence Platform.** A reference architecture and working implementation for delivering, operating, and continuously optimizing mission-critical workloads across hybrid (on-premises + multi-cloud) infrastructure. The platform is designed for environments where reliability, auditability, security posture, and unit economics are non-negotiable — not aspirational.
+
+The design rests on four principles:
+
+1. **Single control plane, many execution backends.** vSphere, AWS, Azure, and OpenShift are peer targets behind one IaC, GitOps, and observability stack — not separate stacks bolted together.
+2. **Policy and security as code at every gate.** Static analysis, image scanning, schema validation, and Pod Security Admission are pipeline gates, not afterthoughts.
+3. **Cost is a first-class operational signal.** FinOps telemetry (rightsizing, budget burn, anomaly detection) flows through the same alerting and incident-response pipeline as reliability signals.
+4. **Every change is reviewable, reversible, and attributable.** GitOps is the contract; manual access to production is the exception, not the workflow.
 
 ## Platform Summary
 
@@ -148,6 +159,17 @@ for o in k8s/overlays/*; do kustomize build "$o" >/dev/null; done
 # Copy the env file and fill in SLACK_WEBHOOK_URL etc.
 cp .env.example .env
 ```
+
+## About the Author
+
+**Emmanuel Naweji** is a platform engineer and applied AI researcher whose work sits at the intersection of large-scale distributed systems and trustworthy machine intelligence in regulated domains.
+
+- **Industry experience.** Delivered platform, cloud, and reliability engineering for global enterprises including **IBM**, **Comcast**, and other Fortune-class organizations — environments where production posture spans regulated workloads, multi-region footprints, and multi-million-dollar cloud budgets.
+- **Research.** PhD researcher focused on **AI / ML / Robotics applied to highly regulated environments** — including safety-critical, audit-bound, and human-in-the-loop systems. Research interests span MLOps and LLMOps for regulated workloads, autonomy under formal constraints, model governance, and the operational substrate (observability, lineage, drift detection) required to deploy learning systems where compliance and reliability are equally non-negotiable.
+- **Engineering practice.** Hybrid cloud (AWS, Azure, GCP, OpenShift, vSphere), Kubernetes platform engineering, GitOps, FinOps, SRE, and AIOps. Comfortable from the kernel up to the model-serving layer, and from a single Terraform module to a multi-cluster app-of-apps topology.
+- **Operating philosophy.** Build platforms that compound: every change reviewable, every cost attributable, every alert actionable, every model auditable. This repository is one expression of that philosophy.
+
+NAWEX is the reference implementation that captures these patterns in a form others can read, run, and adapt.
 
 ## Notes
 
