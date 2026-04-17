@@ -1,0 +1,10 @@
+---
+# Default Redfish system paths per vendor. Override by setting
+# `redfish_system_id` in the inventory (see inventories/baremetal/hosts.yml).
+redfish_system_id: "1"
+
+# Some factory BMC certs are self-signed; flip to true once certs are replaced.
+bmc_validate_certs: false
+
+# Path under which a BMC must expose Managers[] for the install to succeed.
+redfish_managers_path: "/redfish/v1/"

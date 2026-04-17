@@ -20,34 +20,16 @@ module "cost_tags" {
   owner       = "platform-team"
 }
 
+module "baremetal" {
+  source = "../../modules/nawex-baremetal"
+
+  bm_hosts                     = var.bm_hosts
+  bmc_username                 = var.bmc_username
+  bmc_password                 = var.bmc_password
+  disable_bmc_tls_verification = true
+}
+
 locals {
-  # Redfish virtual-media URL scheme per vendor. The installer uses this URL
-  # to mount the CoreOS ISO and power-cycle the host.
-  #
-  #   Dell iDRAC 9+      : idrac-virtualmedia://<bmc>/redfish/v1/Systems/System.Embedded.1
-  #   HPE iLO 5+         : ilo5-virtualmedia://<bmc>/redfish/v1/Systems/1
-  #   Cisco UCS CIMC     : redfish-virtualmedia://<bmc>/redfish/v1/Systems/1
-  bmc_url_scheme = {
-    dell  = "idrac-virtualmedia"
-    hpe   = "ilo5-virtualmedia"
-    cisco = "redfish-virtualmedia"
-  }
-
-  hosts_rendered = [
-    for h in var.bm_hosts : {
-      name            = h.name
-      role            = h.role
-      bootMACAddress  = h.boot_mac
-      rootDeviceHints = { deviceName = h.root_device }
-      bmc = {
-        address         = "${local.bmc_url_scheme[h.vendor]}://${h.bmc_address}/redfish/v1/Systems/${h.bmc_system_id}"
-        username        = var.bmc_username
-        password        = var.bmc_password
-        disableCertificateVerification = true
-      }
-    }
-  ]
-
   install_config = yamlencode({
     apiVersion = "v1"
     baseDomain = var.base_domain
@@ -75,7 +57,7 @@ locals {
         provisioningNetworkInterface = var.provisioning_network_interface
         externalBridge               = var.external_bridge
         provisioningBridge           = var.provisioning_bridge
-        hosts                        = local.hosts_rendered
+        hosts                        = module.baremetal.hosts
       }
     }
     pullSecret = var.pull_secret

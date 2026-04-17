@@ -1,0 +1,67 @@
+---
+# Role: baremetal-bmc
+#
+# Day-0 validation of a bare-metal host's Baseboard Management Controller
+# before running openshift-install. Works against any vendor that exposes
+# Redfish (Dell iDRAC, HPE iLO, Cisco UCS CIMC).
+#
+# Inputs (typically set on each host in the inventory):
+#   vendor             — dell | hpe | cisco
+#   bmc_address        — the BMC IP or hostname
+#   bmc_driver         — idrac | ilo5 | cimc (informational; inventory-driven)
+#   redfish_system_id  — vendor-specific Systems/<id> path segment
+#
+# Inputs (typically set as extra-vars or via vault):
+#   bmc_username, bmc_password
+
+- name: "Assert BMC inputs are present for {{ inventory_hostname }}"
+  ansible.builtin.assert:
+    that:
+      - bmc_address is defined and bmc_address | length > 0
+      - vendor in ["dell", "hpe", "cisco"]
+      - bmc_username is defined
+      - bmc_password is defined
+    fail_msg: "Missing BMC input for {{ inventory_hostname }} — check inventory and extra-vars."
+
+- name: "Probe Redfish root on {{ bmc_address }} ({{ vendor }})"
+  ansible.builtin.uri:
+    url: "https://{{ bmc_address }}{{ redfish_managers_path }}"
+    method: GET
+    user: "{{ bmc_username }}"
+    password: "{{ bmc_password }}"
+    force_basic_auth: true
+    validate_certs: "{{ bmc_validate_certs }}"
+    return_content: true
+    status_code: 200
+  register: redfish_root
+  delegate_to: localhost
+
+- name: "Confirm Redfish Managers endpoint is advertised ({{ inventory_hostname }})"
+  ansible.builtin.assert:
+    that:
+      - "'Managers' in redfish_root.json"
+    fail_msg: >
+      BMC on {{ bmc_address }} does not expose Redfish Managers — firmware
+      too old or Redfish disabled. Update iDRAC/iLO/CIMC firmware before
+      running openshift-install.
+
+- name: "Fetch system record for {{ inventory_hostname }}"
+  ansible.builtin.uri:
+    url: "https://{{ bmc_address }}/redfish/v1/Systems/{{ redfish_system_id }}"
+    method: GET
+    user: "{{ bmc_username }}"
+    password: "{{ bmc_password }}"
+    force_basic_auth: true
+    validate_certs: "{{ bmc_validate_certs }}"
+    return_content: true
+    status_code: 200
+  register: redfish_system
+  delegate_to: localhost
+
+- name: "Record baseline for {{ inventory_hostname }}"
+  ansible.builtin.debug:
+    msg: >
+      {{ inventory_hostname }}: vendor={{ vendor }} driver={{ bmc_driver | default('unknown') }}
+      power={{ redfish_system.json.PowerState | default('?') }}
+      model={{ redfish_system.json.Model | default('?') }}
+      bios={{ redfish_system.json.BiosVersion | default('?') }}
