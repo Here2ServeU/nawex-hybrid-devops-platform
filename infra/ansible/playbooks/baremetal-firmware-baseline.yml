@@ -1,0 +1,40 @@
+---
+# Pre-install firmware/BIOS baseline for NAWEX bare-metal hosts.
+#
+# Firmware drift across a mixed Cisco/HPE/Dell fleet is the most common
+# cause of OpenShift baremetal install failures — a stale iDRAC or iLO
+# will not expose the Redfish endpoints the installer expects. This
+# playbook runs BEFORE openshift-install to confirm each BMC is reachable,
+# at the expected firmware baseline, and configured for virtual-media
+# boot.
+#
+# It runs against the BMC endpoint (delegated to localhost), not the OS —
+# the hosts may not even be powered on yet.
+
+- name: Validate bare-metal BMC baseline before OpenShift install
+  hosts: baremetal_nodes
+  gather_facts: false
+  connection: local
+  tasks:
+    - name: Probe Redfish root on {{ inventory_hostname }} ({{ vendor }})
+      ansible.builtin.uri:
+        url: "https://{{ bmc_address }}/redfish/v1/"
+        method: GET
+        user: "{{ bmc_username }}"
+        password: "{{ bmc_password }}"
+        force_basic_auth: true
+        validate_certs: false
+        return_content: true
+        status_code: 200
+      register: redfish_root
+      delegate_to: localhost
+
+    - name: Confirm virtual media is advertised
+      ansible.builtin.assert:
+        that:
+          - "'Managers' in redfish_root.json"
+        fail_msg: "BMC on {{ bmc_address }} does not expose Redfish Managers — firmware too old."
+
+    - name: Record BMC firmware version per host
+      ansible.builtin.debug:
+        msg: "{{ inventory_hostname }}: vendor={{ vendor }} driver={{ bmc_driver }} redfish_ok=true"

@@ -74,20 +74,37 @@ environments, so the same skills apply everywhere.
 
 ### Repository layout
 
-```
+```text
 infra/terraform/
   modules/
-    nawex-vsphere/     # reusable building block for on-prem VMs
-    nawex-eks/         # reusable building block for AWS Kubernetes
-    nawex-aks/         # reusable building block for Azure Kubernetes
+    nawex-vsphere/       # reusable building block for on-prem VMs
+    nawex-eks/           # reusable building block for AWS Kubernetes
+    nawex-aks/           # reusable building block for Azure Kubernetes
   envs/
-    onprem/            # uses the nawex-vsphere module
+    onprem/              # uses the nawex-vsphere module
     dev/ staging/ prod/
-    aws-eks/           # cloud target
-    azure-aks/         # cloud target
-    openshift-rosa/    # managed OpenShift on AWS
-    openshift-vsphere/ # self-managed OpenShift on vSphere
+    aws-eks/             # cloud target
+    azure-aks/           # cloud target
+    openshift-rosa/      # managed OpenShift on AWS
+    openshift-vsphere/   # self-managed OpenShift on vSphere
+    openshift-baremetal/ # self-managed OpenShift on Cisco/HPE/Dell hardware
 ```
+
+### A note on bare metal
+
+In regulated and latency-sensitive data centers, OpenShift is often deployed
+directly onto physical servers rather than onto a hypervisor. NAWEX supports
+this through the `openshift-baremetal` environment, which drives the install
+over each server's Baseboard Management Controller (BMC) — the
+out-of-band management processor embedded on enterprise server hardware:
+
+- **Cisco UCS** servers expose CIMC (Cisco Integrated Management Controller).
+- **HPE ProLiant** servers expose iLO (Integrated Lights-Out).
+- **Dell PowerEdge** servers expose iDRAC (integrated Dell Remote Access Controller).
+
+All three speak the Redfish standard for power control and virtual media.
+The Terraform environment translates a vendor-agnostic host list into the
+correct per-vendor Redfish URL so a single cluster can even mix vendors.
 
 ### Core concepts
 

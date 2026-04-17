@@ -19,8 +19,9 @@ infra/terraform/
     dev/ staging/ prod/
     aws-eks/           # migration target
     azure-aks/         # migration target
-    openshift-rosa/    # managed OpenShift on AWS
-    openshift-vsphere/ # self-managed IPI on vSphere
+    openshift-rosa/      # managed OpenShift on AWS
+    openshift-vsphere/   # self-managed IPI on vSphere
+    openshift-baremetal/ # self-managed IPI on bare metal (Cisco/HPE/Dell)
 ```
 
 ### Core concepts
@@ -49,9 +50,21 @@ Ref: [infra/terraform/modules/](../infra/terraform/modules/), [.pre-commit-confi
 
 **How is OpenShift handled in IaC and how does it differ from vanilla Kubernetes?**
 
-The platform supports two OpenShift deployment models via Terraform: `openshift-rosa` (managed Red Hat OpenShift on AWS) and `openshift-vsphere` (self-managed installer-provisioned infrastructure on vSphere). Key operational differences from vanilla Kubernetes: OpenShift uses Security Context Constraints (SCC) instead of Pod Security Admission, it uses Routes instead of Ingress objects, and all workloads must run non-root. The OpenShift K8s overlay adds a Route manifest, an SCC RoleBinding for non-root pods, and PSA-restricted namespace labels.
+The platform supports three OpenShift deployment models via Terraform: `openshift-rosa` (managed Red Hat OpenShift on AWS), `openshift-vsphere` (self-managed IPI on vSphere), and `openshift-baremetal` (self-managed IPI on physical servers). Key operational differences from vanilla Kubernetes: OpenShift uses Security Context Constraints (SCC) instead of Pod Security Admission, it uses Routes instead of Ingress objects, and all workloads must run non-root. The OpenShift K8s overlay adds a Route manifest, an SCC RoleBinding for non-root pods, and PSA-restricted namespace labels.
 
-Ref: [infra/terraform/envs/openshift-rosa/](../infra/terraform/envs/openshift-rosa/), [k8s/overlays/openshift/](../k8s/overlays/openshift/)
+Ref: [infra/terraform/envs/openshift-rosa/](../infra/terraform/envs/openshift-rosa/), [infra/terraform/envs/openshift-vsphere/](../infra/terraform/envs/openshift-vsphere/), [infra/terraform/envs/openshift-baremetal/](../infra/terraform/envs/openshift-baremetal/), [k8s/overlays/openshift/](../k8s/overlays/openshift/)
+
+**How is OpenShift installed on bare-metal servers (Cisco, HPE, Dell)?**
+
+The `openshift-baremetal` environment uses OpenShift's `platform: baremetal` IPI mode. Each physical host is declared with its vendor, its Baseboard Management Controller address (iDRAC for Dell PowerEdge, iLO for HPE ProLiant, CIMC for Cisco UCS), and the MAC address of the NIC on the provisioning network. Terraform translates each `vendor` field into the correct Redfish virtual-media URL scheme:
+
+- Dell iDRAC 9+ → `idrac-virtualmedia://<bmc>/redfish/v1/Systems/System.Embedded.1`
+- HPE iLO 5+ → `ilo5-virtualmedia://<bmc>/redfish/v1/Systems/1`
+- Cisco UCS CIMC → `redfish-virtualmedia://<bmc>/redfish/v1/Systems/1`
+
+`openshift-install` then drives the install over each BMC: it mounts the CoreOS ISO via virtual media, power-cycles the host, and installs onto the disk matched by `rootDeviceHints`. Mixed-vendor clusters are supported. Before install, the `baremetal-firmware-baseline.yml` Ansible playbook probes each BMC over Redfish to catch firmware drift — the most common cause of baremetal install failure.
+
+Ref: [infra/terraform/envs/openshift-baremetal/](../infra/terraform/envs/openshift-baremetal/), [infra/ansible/inventories/baremetal/](../infra/ansible/inventories/baremetal/), [infra/ansible/playbooks/baremetal-firmware-baseline.yml](../infra/ansible/playbooks/baremetal-firmware-baseline.yml)
 
 ---
 

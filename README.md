@@ -17,7 +17,19 @@ The design rests on four principles:
 
 This repository shows how a mission platform moves from infrastructure provisioning to application delivery and then into operations across both cloud and on-prem environments. It combines Terraform, Ansible, Kubernetes, Argo CD, observability, runbooks, and Python-based FinOps and AIOps utilities in one delivery model.
 
-It also demonstrates a **VM-to-Kubernetes migration path** (option 1: containerize): on-prem vSphere VMs are inventoried, rebuilt as containers, and deployed to **EKS (AWS)**, **AKS (Azure)**, or **OpenShift** (ROSA on AWS, or self-managed IPI on vSphere) via GitOps. See [migration/](migration/) and [runbooks/vm-to-k8s-migration.md](runbooks/vm-to-k8s-migration.md).
+It also demonstrates a **VM-to-Kubernetes migration path** (option 1: containerize): on-prem vSphere VMs are inventoried, rebuilt as containers, and deployed to **EKS (AWS)**, **AKS (Azure)**, or **OpenShift** — managed (ROSA on AWS), self-managed IPI on vSphere, or self-managed IPI on **bare metal** (Cisco UCS, HPE ProLiant, Dell PowerEdge) — via GitOps. See [migration/](migration/) and [runbooks/vm-to-k8s-migration.md](runbooks/vm-to-k8s-migration.md).
+
+### Bare-metal OpenShift footprint
+
+For regulated, latency-sensitive, or hardware-attested workloads, NAWEX supports OpenShift running directly on physical servers — no hypervisor — across the three enterprise server families typically found in on-prem data centers:
+
+| Vendor | Example platforms                   | BMC     | Redfish virtual-media scheme |
+|--------|-------------------------------------|---------|------------------------------|
+| Cisco  | UCS C220/C240 M6 (standalone CIMC)  | CIMC    | `redfish-virtualmedia://`    |
+| HPE    | ProLiant DL360 / DL380              | iLO 5   | `ilo5-virtualmedia://`       |
+| Dell   | PowerEdge R650 / R750               | iDRAC 9 | `idrac-virtualmedia://`      |
+
+Terraform env [infra/terraform/envs/openshift-baremetal/](infra/terraform/envs/openshift-baremetal/) renders a compliant `platform: baremetal` install-config, translating a vendor-agnostic host list into the correct per-vendor Redfish URL. `openshift-install` then drives PXE-less, virtual-media installs over each host's BMC. Ansible inventory [infra/ansible/inventories/baremetal/](infra/ansible/inventories/baremetal/) groups nodes by vendor so the firmware-baseline playbook [infra/ansible/playbooks/baremetal-firmware-baseline.yml](infra/ansible/playbooks/baremetal-firmware-baseline.yml) can validate every BMC before install.
 
 ## How The Platform Works
 
@@ -25,18 +37,22 @@ It also demonstrates a **VM-to-Kubernetes migration path** (option 1: containeri
 flowchart LR
     Dev[Engineers commit changes] --> GH[Git repository]
     GH --> CI[Validation and deployment scripts]
-    CI --> TF[Terraform: vSphere, AWS, Azure]
-    CI --> ANS[Ansible: Linux baseline + kubeadm join]
+    CI --> TF[Terraform: bare metal, vSphere, AWS, Azure]
+    CI --> ANS[Ansible: Linux baseline + BMC firmware baseline + kubeadm join]
     GH --> GO[GitOps manifests in gitops/]
     GO --> ARGO[Argo CD app-of-apps]
     ARGO --> K8S[Kubernetes overlays per environment]
+    TF --> BM[Bare metal: Cisco UCS / HPE ProLiant / Dell PowerEdge]
     TF --> VS[vSphere VMs on-prem]
     TF --> EKS[AWS EKS cluster]
     TF --> AKS[Azure AKS cluster]
-    TF --> OCP[OpenShift: ROSA or vSphere IPI]
+    TF --> OCP[OpenShift: ROSA, vSphere IPI, or bare-metal IPI]
     TF --> CLOUD[Cloud envs: dev, staging, prod]
+    ANS --> BM
     ANS --> VS
     ANS --> CLOUD
+    BM --> OCP
+    BM --> K8S
     VS --> K8S
     EKS --> K8S
     AKS --> K8S
@@ -57,8 +73,8 @@ flowchart LR
 
 - [architecture/](architecture/) documents the target platform design, architecture views, and SLI/SLO model.
 - [app/](app/) contains the deployable workloads: [web UI](app/nawex-web-ui/), [API](app/nawex-api/), and [worker](app/nawex-worker/).
-- [infra/terraform/](infra/terraform/) defines reusable infrastructure modules and environment compositions: cloud envs (dev, staging, prod), the [on-prem vSphere environment](infra/terraform/envs/onprem/) (uses the [nawex-vsphere module](infra/terraform/modules/nawex-vsphere/)), migration target clusters [AWS EKS](infra/terraform/envs/aws-eks/) and [Azure AKS](infra/terraform/envs/azure-aks/), and OpenShift targets [ROSA](infra/terraform/envs/openshift-rosa/) (managed on AWS) and [self-managed IPI on vSphere](infra/terraform/envs/openshift-vsphere/).
-- [infra/ansible/](infra/ansible/) holds Linux baseline automation, shared roles, and per-environment inventories. On-prem supports a [static host list](infra/ansible/inventories/onprem/hosts.yml), a [dynamic vSphere inventory](infra/ansible/inventories/onprem/vmware.yml), and a [kubeadm-join playbook](infra/ansible/playbooks/vsphere-join-cluster.yml).
+- [infra/terraform/](infra/terraform/) defines reusable infrastructure modules and environment compositions: cloud envs (dev, staging, prod), the [on-prem vSphere environment](infra/terraform/envs/onprem/) (uses the [nawex-vsphere module](infra/terraform/modules/nawex-vsphere/)), migration target clusters [AWS EKS](infra/terraform/envs/aws-eks/) and [Azure AKS](infra/terraform/envs/azure-aks/), and OpenShift targets [ROSA](infra/terraform/envs/openshift-rosa/) (managed on AWS), [self-managed IPI on vSphere](infra/terraform/envs/openshift-vsphere/), and [self-managed IPI on bare metal](infra/terraform/envs/openshift-baremetal/) (Cisco UCS, HPE ProLiant, Dell PowerEdge via Redfish).
+- [infra/ansible/](infra/ansible/) holds Linux baseline automation, shared roles, and per-environment inventories. On-prem supports a [static host list](infra/ansible/inventories/onprem/hosts.yml), a [dynamic vSphere inventory](infra/ansible/inventories/onprem/vmware.yml), and a [kubeadm-join playbook](infra/ansible/playbooks/vsphere-join-cluster.yml). The [bare-metal inventory](infra/ansible/inventories/baremetal/hosts.yml) groups nodes by vendor (Cisco UCS, HPE ProLiant, Dell PowerEdge) and drives the [firmware-baseline playbook](infra/ansible/playbooks/baremetal-firmware-baseline.yml) that validates every BMC (CIMC/iLO/iDRAC) before install.
 - [k8s/](k8s/) contains the Kubernetes base manifests and overlays for [dev](k8s/overlays/dev/), [staging](k8s/overlays/staging/), [prod](k8s/overlays/prod/), [onprem](k8s/overlays/onprem/), [aws-eks](k8s/overlays/aws-eks/), [azure-aks](k8s/overlays/azure-aks/), and [openshift](k8s/overlays/openshift/) (ships a `Route`, an SCC RoleBinding for non-root pods, and PSA-restricted namespace labels).
 - [migration/](migration/) contains the VM-to-container migration tooling: [assess](migration/assess/) (inventory vCenter VMs → WorkloadProfile stubs), [containerize](migration/containerize/) (WorkloadProfile → Dockerfile + K8s manifest), and [samples](migration/samples/).
 - [gitops/](gitops/) contains the Argo CD GitOps layer, including the [root application](gitops/root-application.yaml), [project](gitops/project.yaml), the [environment apps](gitops/apps/), and the [local test harness](gitops/local/).
@@ -69,12 +85,12 @@ flowchart LR
 
 ## What This Proves
 
-- Infrastructure as code with reusable Terraform modules across **vSphere, AWS, and Azure**
-- Configuration management with Ansible, including a dynamic vSphere inventory
+- Infrastructure as code with reusable Terraform modules across **bare metal (Cisco / HPE / Dell), vSphere, AWS, and Azure**
+- Configuration management with Ansible, including a dynamic vSphere inventory and a vendor-grouped bare-metal inventory with BMC firmware-baseline validation
 - Kubernetes packaging with base + overlay separation across **seven targets** (dev, staging, prod, onprem, aws-eks, azure-aks, openshift)
 - GitOps delivery with Argo CD application manifests, scoped `AppProject` roles, per-env retry policy
-- Hybrid environment management across cloud and on-prem targets, plus a migration bridge between them
-- **VM-to-K8s migration (option 1 — containerize):** assess vSphere VMs → generate Dockerfile + manifests → deploy to EKS, AKS, or OpenShift (with Route + SCC binding) via GitOps
+- Hybrid environment management across bare-metal, cloud, and on-prem virtualized targets, plus a migration bridge between them
+- **VM-to-K8s migration (option 1 — containerize):** assess vSphere VMs → generate Dockerfile + manifests → deploy to EKS, AKS, or OpenShift (managed ROSA, self-managed vSphere IPI, or bare-metal IPI) via GitOps
 - Observability, alerting with Slack approve/deny flow, and SRE operating practices
 - FinOps and AIOps automation embedded into the platform workflow
 
