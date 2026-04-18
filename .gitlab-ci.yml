@@ -1,0 +1,334 @@
+# NAWEX GitLab CI/CD pipeline
+#
+# Mirrors the GitHub Actions workflows in .github/workflows/ so the platform
+# is portable across SCMs. Stages map 1:1 to the six quality gates described
+# in architecture/platform-learning-guide.md (Module 2).
+#
+#   lint       — ruff, shellcheck, terraform fmt, hadolint
+#   security   — tfsec, checkov, trivy image scan
+#   test       — pytest (Python FinOps/AIOps + API)
+#   validate   — terraform validate/plan, kubeconform, gitops manifests
+#   build      — docker build for nawex-api / nawex-worker / nawex-web-ui
+#   deploy     — manual GitOps hand-off (Argo CD reconciles the cluster)
+#   schedule   — weekly FinOps/SRE report job (run via pipeline schedules)
+
+stages:
+  - lint
+  - security
+  - test
+  - validate
+  - build
+  - deploy
+  - schedule
+
+variables:
+  PYTHON_VERSION: "3.12"
+  TERRAFORM_VERSION: "1.9.8"
+  KUSTOMIZE_VERSION: "5.5.0"
+  KUBECONFORM_VERSION: "0.6.7"
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+  GIT_DEPTH: "20"
+
+default:
+  tags: [docker]
+  interruptible: true
+
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "web"
+
+# ---------- reusable templates ----------
+
+.python:
+  image: python:${PYTHON_VERSION}-slim
+  cache:
+    key:
+      files:
+        - app/nawex-api/requirements.txt
+        - finops-aiops/python/requirements.txt
+    paths:
+      - .cache/pip
+  before_script:
+    - python -m pip install --upgrade pip
+
+.terraform:
+  image: hashicorp/terraform:${TERRAFORM_VERSION}
+  before_script:
+    - terraform --version
+
+# ==========================================================
+# STAGE: lint
+# ==========================================================
+
+python:lint:
+  extends: .python
+  stage: lint
+  script:
+    - pip install ruff
+    - ruff check .
+    - ruff format --check .
+
+shellcheck:
+  stage: lint
+  image: koalaman/shellcheck-alpine:stable
+  script:
+    - shellcheck scripts/*.sh scripts/remediations/*.sh
+
+terraform:fmt:
+  extends: .terraform
+  stage: lint
+  script:
+    - terraform fmt -check -recursive infra/terraform
+
+hadolint:
+  stage: lint
+  image: hadolint/hadolint:latest-debian
+  script:
+    - hadolint app/nawex-api/Dockerfile
+    - hadolint app/nawex-worker/Dockerfile
+    - hadolint app/nawex-web-ui/Dockerfile
+
+# ==========================================================
+# STAGE: security
+# ==========================================================
+
+tfsec:
+  stage: security
+  image: aquasec/tfsec:latest
+  script:
+    - tfsec infra/terraform --soft-fail=false
+
+checkov:
+  stage: security
+  image: bridgecrew/checkov:latest
+  script:
+    - checkov -d infra/terraform --framework terraform --quiet
+
+trivy:image:
+  stage: security
+  image: docker:24
+  services:
+    - docker:24-dind
+  variables:
+    DOCKER_TLS_CERTDIR: "/certs"
+  parallel:
+    matrix:
+      - IMAGE_NAME: nawex-api
+        IMAGE_CONTEXT: app/nawex-api
+      - IMAGE_NAME: nawex-worker
+        IMAGE_CONTEXT: app/nawex-worker
+      - IMAGE_NAME: nawex-web-ui
+        IMAGE_CONTEXT: app/nawex-web-ui
+  script:
+    - docker build -t ${IMAGE_NAME}:ci ${IMAGE_CONTEXT}
+    - |
+      docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+        aquasec/trivy:latest image \
+          --exit-code 1 \
+          --ignore-unfixed \
+          --severity CRITICAL,HIGH \
+          --format table \
+          ${IMAGE_NAME}:ci
+
+# ==========================================================
+# STAGE: test
+# ==========================================================
+
+pytest:
+  extends: .python
+  stage: test
+  script:
+    - pip install pytest pytest-cov
+    - pip install -r app/nawex-api/requirements.txt
+    - |
+      if [ -f finops-aiops/python/requirements.txt ]; then
+        pip install -r finops-aiops/python/requirements.txt
+      fi
+    - pytest --cov=finops-aiops/python --cov=app -q
+
+# ==========================================================
+# STAGE: validate
+# ==========================================================
+
+terraform:validate:
+  extends: .terraform
+  stage: validate
+  parallel:
+    matrix:
+      - TF_ENV: [dev, staging, prod, onprem, aws-eks, azure-aks, openshift-rosa, openshift-vsphere, openshift-baremetal]
+  script:
+    - cd infra/terraform/envs/${TF_ENV}
+    - terraform init -backend=false
+    - terraform validate
+    - |
+      case "${TF_ENV}" in
+        dev|staging|prod)
+          terraform plan -lock=false -input=false
+          ;;
+        *)
+          echo "Skipping plan for ${TF_ENV} — requires cloud credentials"
+          ;;
+      esac
+
+kubeconform:
+  stage: validate
+  image: alpine:3.20
+  before_script:
+    - apk add --no-cache curl bash
+    - curl -sSL -o /tmp/kustomize.tar.gz "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv${KUSTOMIZE_VERSION}/kustomize_v${KUSTOMIZE_VERSION}_linux_amd64.tar.gz"
+    - tar -xzf /tmp/kustomize.tar.gz -C /usr/local/bin
+    - curl -sSL -o /tmp/kubeconform.tar.gz "https://github.com/yannh/kubeconform/releases/download/v${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz"
+    - tar -xzf /tmp/kubeconform.tar.gz -C /usr/local/bin
+  script:
+    - set -euo pipefail
+    - |
+      for overlay in k8s/overlays/*; do
+        echo "=== ${overlay} ==="
+        kustomize build "${overlay}" | kubeconform \
+          -strict -summary \
+          -schema-location default \
+          -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'
+      done
+
+gitops:manifests:
+  stage: validate
+  image: alpine:3.20
+  script:
+    - set -euo pipefail
+    - test -f gitops/project.yaml
+    - test -f gitops/root-application.yaml
+    - |
+      for env in dev staging prod onprem aws-eks azure-aks openshift; do
+        test -f "gitops/apps/${env}-platform.yaml"
+        test -f "k8s/overlays/${env}/kustomization.yaml"
+      done
+
+# ==========================================================
+# STAGE: build
+# ==========================================================
+
+docker:build:
+  stage: build
+  image: docker:24
+  services:
+    - docker:24-dind
+  variables:
+    DOCKER_TLS_CERTDIR: "/certs"
+  parallel:
+    matrix:
+      - IMAGE_NAME: nawex-api
+        IMAGE_CONTEXT: app/nawex-api
+      - IMAGE_NAME: nawex-worker
+        IMAGE_CONTEXT: app/nawex-worker
+      - IMAGE_NAME: nawex-web-ui
+        IMAGE_CONTEXT: app/nawex-web-ui
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  before_script:
+    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
+  script:
+    - docker build -t "$CI_REGISTRY_IMAGE/${IMAGE_NAME}:${CI_COMMIT_SHORT_SHA}" "${IMAGE_CONTEXT}"
+    - docker push "$CI_REGISTRY_IMAGE/${IMAGE_NAME}:${CI_COMMIT_SHORT_SHA}"
+
+# ==========================================================
+# STAGE: deploy (manual GitOps hand-off — Argo CD reconciles)
+# ==========================================================
+
+.deploy:
+  stage: deploy
+  image: alpine:3.20
+  when: manual
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  before_script:
+    - apk add --no-cache curl bash tar
+    - curl -sSL -o /tmp/kustomize.tar.gz "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv${KUSTOMIZE_VERSION}/kustomize_v${KUSTOMIZE_VERSION}_linux_amd64.tar.gz"
+    - tar -xzf /tmp/kustomize.tar.gz -C /usr/local/bin
+  script:
+    - set -euo pipefail
+    - test -f gitops/project.yaml
+    - test -f gitops/root-application.yaml
+    - test -f "gitops/apps/${TARGET_ENV}-platform.yaml"
+    - test -f "k8s/overlays/${TARGET_ENV}/kustomization.yaml"
+    - kustomize build "k8s/overlays/${TARGET_ENV}" > /tmp/rendered.yaml
+    - wc -l /tmp/rendered.yaml
+    - |
+      echo "CI validated the GitOps payload for ${TARGET_ENV}."
+      echo "Argo CD reconciles cluster state from gitops/apps/${TARGET_ENV}-platform.yaml."
+
+deploy:dev:
+  extends: .deploy
+  variables: { TARGET_ENV: dev }
+  environment: { name: dev }
+
+deploy:staging:
+  extends: .deploy
+  variables: { TARGET_ENV: staging }
+  environment: { name: staging }
+
+deploy:prod:
+  extends: .deploy
+  variables: { TARGET_ENV: prod }
+  environment: { name: prod }
+
+deploy:onprem:
+  extends: .deploy
+  variables: { TARGET_ENV: onprem }
+  environment: { name: onprem }
+
+deploy:aws-eks:
+  extends: .deploy
+  variables: { TARGET_ENV: aws-eks }
+  environment: { name: aws-eks }
+
+deploy:azure-aks:
+  extends: .deploy
+  variables: { TARGET_ENV: azure-aks }
+  environment: { name: azure-aks }
+
+deploy:openshift:
+  extends: .deploy
+  variables: { TARGET_ENV: openshift }
+  environment: { name: openshift }
+
+# ==========================================================
+# STAGE: schedule (pipeline schedule: weekly FinOps / SRE reports)
+# CI → Schedules: "0 12 * * 1"  (Mon 12:00 UTC), var RUN_FINOPS=1
+# ==========================================================
+
+finops-sre:
+  extends: .python
+  stage: schedule
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $RUN_FINOPS == "1"
+  script:
+    - |
+      if [ -f finops-aiops/python/requirements.txt ]; then
+        pip install -r finops-aiops/python/requirements.txt
+      fi
+    - python finops-aiops/python/rightsizing_engine.py      --output rightsizing.json
+    - python finops-aiops/python/budget_burn_predictor.py   --output budget.json
+    - python finops-aiops/python/slo_risk_checker.py        --output slo.json
+    - python finops-aiops/python/anomaly_detector.py        --output anomaly.json
+    - |
+      if [ -n "${SLACK_WEBHOOK_URL:-}" ]; then
+        python finops-aiops/python/notify_slack.py \
+          --webhook "$SLACK_WEBHOOK_URL" \
+          --report rightsizing.json \
+          --report budget.json \
+          --report slo.json \
+          --report anomaly.json
+      else
+        echo "SLACK_WEBHOOK_URL not configured, skipping Slack notification"
+      fi
+  artifacts:
+    name: finops-sre-reports-${CI_PIPELINE_ID}
+    paths:
+      - rightsizing.json
+      - budget.json
+      - slo.json
+      - anomaly.json
+    expire_in: 30 days

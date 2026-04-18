@@ -230,10 +230,35 @@ infra/ansible/
 6. **Deploy / GitOps sync:** Argo CD picks up validated manifests from
    Git. CI only validates; GitOps controls deployment.
 
-> A note on portability: the same pipeline pattern translates directly
-> between CI providers (GitHub Actions, GitLab CI, Jenkins, and so on).
-> The stages, jobs, runners, artifacts, and caching concepts are
-> identical — only the YAML syntax differs.
+### Two interchangeable pipeline implementations
+
+NAWEX ships the same six quality gates in **two SCM-native pipelines** so a
+team can adopt either stack without reimplementing the quality model:
+
+- **GitHub Actions** — [.github/workflows/](../.github/workflows/) contains
+  `ci.yml` (lint, security, test, validate, build), `terraform.yml`
+  (fmt, validate/plan per env, tfsec, checkov), `deploy.yml`
+  (`workflow_dispatch` GitOps hand-off per environment), and
+  `finops-sre.yml` (weekly cron that runs the Python FinOps utilities and
+  posts to Slack).
+- **GitLab CI/CD** — [.gitlab-ci.yml](../.gitlab-ci.yml) expresses the same
+  six gates as seven stages (`lint`, `security`, `test`, `validate`,
+  `build`, `deploy`, `schedule`). It uses GitLab's `parallel:matrix` to
+  fan out Terraform validation across the nine environments and Docker
+  build/scan across the three images, pushes built images to the
+  project's built-in container registry (`$CI_REGISTRY_IMAGE`), uses
+  `when: manual` + GitLab environments for the per-env GitOps hand-off,
+  and runs the weekly FinOps report as a pipeline schedule
+  (cron `0 12 * * 1` with `RUN_FINOPS=1`).
+
+The *stages, jobs, runners, artifacts, and caching concepts are
+identical* — only the YAML syntax differs. This is deliberate: a platform
+design that binds itself to one SCM's CI DSL is less portable than the
+infrastructure it orchestrates. GitLab users can import the repository,
+set `SLACK_WEBHOOK_URL` (and cloud credentials if they want full
+`terraform plan`), and get exactly the same quality gate as GitHub users.
+
+*Reference: [.github/workflows/](../.github/workflows/) and [.gitlab-ci.yml](../.gitlab-ci.yml)*
 
 ### Common questions
 
@@ -605,7 +630,7 @@ and security are not nice-to-haves; they are the entire job.
 | Terraform IaC | [infra/terraform/](../infra/terraform/) — three modules, eight environments |
 | Ansible | [infra/ansible/](../infra/ansible/) — dynamic vSphere inventory and kubeadm-join automation |
 | Containers and Kubernetes | Seven overlays, security-hardened, GitOps-managed |
-| CI/CD pipelines | [.github/workflows/](../.github/workflows/) — six-stage quality gate |
+| CI/CD pipelines | [.github/workflows/](../.github/workflows/) and [.gitlab-ci.yml](../.gitlab-ci.yml) — same six-stage quality gate, two SCMs |
 | FinOps | [finops-aiops/python/](../finops-aiops/python/) — four Python utilities |
 | GitOps | Argo CD app-of-apps, seven targets |
 | Linux systems | Ansible Linux baseline, all infrastructure Linux-based |

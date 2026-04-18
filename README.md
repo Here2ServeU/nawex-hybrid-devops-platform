@@ -133,6 +133,33 @@ Full procedure, remediation table, and a local end-to-end test live in [runbooks
 - CI runs **Hadolint** on every Dockerfile, **Trivy** against each built image (CRITICAL/HIGH gate), **kubeconform** against every overlay, **tfsec** + **checkov** on Terraform, **ruff** + **pytest** on Python, and **shellcheck** on all scripts.
 - Web UI HTML ships a strict CSP and related headers; API Docker image is a distroless-style multi-stage build served by gunicorn with a container HEALTHCHECK.
 
+## CI/CD — GitHub Actions and GitLab CI/CD
+
+The platform ships **two interchangeable CI/CD implementations** so the same
+quality gates run on whichever SCM a team standardizes on. Both pipelines
+execute the same six-stage quality gate (lint → security → test → validate →
+build → deploy) and both hand off to Argo CD for cluster reconciliation.
+
+| Stage | GitHub Actions ([.github/workflows/](.github/workflows/)) | GitLab CI/CD ([.gitlab-ci.yml](.gitlab-ci.yml)) | Tools |
+| ----- | --------------------------------------------------------- | ----------------------------------------------- | ----- |
+| lint | `ci.yml` → `python`, `shell` | `python:lint`, `shellcheck`, `terraform:fmt`, `hadolint` | ruff, shellcheck, terraform fmt, hadolint |
+| security | `ci.yml` → `docker` (Trivy), `terraform.yml` → `tfsec`, `checkov` | `tfsec`, `checkov`, `trivy:image` | tfsec, checkov, trivy |
+| test | `ci.yml` → `python` (pytest) | `pytest` | pytest + pytest-cov |
+| validate | `ci.yml` → `kustomize`, `gitops`; `terraform.yml` → `validate` | `terraform:validate` (matrix × 9 envs), `kubeconform`, `gitops:manifests` | kubeconform, terraform validate/plan |
+| build | `ci.yml` → `docker` (matrix × 3 images) | `docker:build` (matrix × 3 images → `$CI_REGISTRY_IMAGE`) | docker buildx |
+| deploy | `deploy.yml` (workflow_dispatch, 7 envs) | `deploy:*` (manual, 7 envs, GitLab environments) | kustomize render + GitOps hand-off |
+| schedule | `finops-sre.yml` (cron `0 12 * * 1`) | `finops-sre` (GitLab pipeline schedule, `RUN_FINOPS=1`) | rightsizing, budget burn, SLO risk, anomaly detection |
+
+### Running the GitLab pipeline
+
+1. **Import the repo** into a GitLab project (or push to a GitLab remote). GitLab auto-detects [.gitlab-ci.yml](.gitlab-ci.yml).
+2. **Configure CI/CD variables** in *Settings → CI/CD → Variables*: `SLACK_WEBHOOK_URL` (optional, masked), and cloud credentials (`AWS_*`, `ARM_*`) if you want `terraform plan` to run against real cloud envs.
+3. **Container registry** is available out of the box — `docker:build` pushes to `$CI_REGISTRY_IMAGE/<image>:<short-sha>` on `main` using the built-in `$CI_REGISTRY_USER` / `$CI_REGISTRY_PASSWORD` tokens.
+4. **Weekly FinOps job** — create a pipeline schedule (*CI/CD → Schedules*) with cron `0 12 * * 1` and variable `RUN_FINOPS=1`. Reports are uploaded as job artifacts and posted to Slack when `SLACK_WEBHOOK_URL` is set.
+5. **Production deploys** — `deploy:prod` is `when: manual` and scoped to the `prod` GitLab environment, matching the GitHub `workflow_dispatch` gate and Argo CD's `automated: false` stance for prod.
+
+Both pipelines validate the same Terraform envs (dev, staging, prod, onprem, aws-eks, azure-aks, openshift-rosa, openshift-vsphere, openshift-baremetal) and the same seven Kustomize overlays, so the SCM choice is a **deployment detail**, not an architectural commitment.
+
 ## GitOps Flow
 
 1. Platform changes land in Git and are validated by local or CI automation.
