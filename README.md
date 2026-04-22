@@ -1,27 +1,125 @@
-# nawex-hybrid-devops-platform
+# NAWEX — Naweji Enterprise Excellence Platform
 
-Enterprise hybrid DevOps, FinOps, SRE, AIOps, and GitOps reference implementation for a regulated mission data platform.
+> **Hybrid DevOps, FinOps, SRE, AIOps, and GitOps reference implementation for regulated mission workloads.**
 
-## What NAWEX Means
+A working reference architecture for delivering, operating, and continuously optimizing mission-critical systems across **bare metal, vSphere, AWS, and Azure** — under one control plane, one set of quality gates, and one observability substrate.
 
-**NAWEX — Naweji Enterprise Excellence Platform.** A reference architecture and working implementation for delivering, operating, and continuously optimizing mission-critical workloads across hybrid (on-premises + multi-cloud) infrastructure. The platform is designed for environments where reliability, auditability, security posture, and unit economics are non-negotiable — not aspirational.
+---
 
-The design rests on four principles:
+## Design Principles
 
-1. **Single control plane, many execution backends.** vSphere, AWS, Azure, and OpenShift are peer targets behind one IaC, GitOps, and observability stack — not separate stacks bolted together.
-2. **Policy and security as code at every gate.** Static analysis, image scanning, schema validation, and Pod Security Admission are pipeline gates, not afterthoughts.
-3. **Cost is a first-class operational signal.** FinOps telemetry (rightsizing, budget burn, anomaly detection) flows through the same alerting and incident-response pipeline as reliability signals.
-4. **Every change is reviewable, reversible, and attributable.** GitOps is the contract; manual access to production is the exception, not the workflow.
+| # | Principle | What it means in this repo |
+|---|-----------|----------------------------|
+| 1 | **Single control plane, many execution backends** | vSphere, AWS, Azure, OpenShift, and bare metal are peer targets behind one IaC, GitOps, and observability stack. |
+| 2 | **Policy and security as code at every gate** | Hadolint, Trivy, tfsec, checkov, kubeconform, and Pod Security Admission run as pipeline gates, not audits. |
+| 3 | **Cost is a first-class operational signal** | FinOps telemetry (rightsizing, budget burn, anomaly detection) rides the same alert/incident pipeline as reliability signals. |
+| 4 | **Every change is reviewable, reversible, attributable** | GitOps is the contract; manual access to prod is the exception. |
+
+---
+
+## How The Platform Works
+
+The platform is a **layered delivery stack**. Source of truth on top, execution backends in the middle, GitOps binds the two, observability closes the loop.
+
+```mermaid
+flowchart TB
+    %% ───────── STYLES ─────────
+    classDef source   fill:#efebe3,stroke:#a8a29e,color:#3f3f46,stroke-width:1.5px
+    classDef delivery fill:#e0e7ff,stroke:#818cf8,color:#3730a3,stroke-width:1.5px
+    classDef infra    fill:#d1fae5,stroke:#34d399,color:#065f46,stroke-width:1.5px
+    classDef target   fill:#dbeafe,stroke:#60a5fa,color:#1e40af,stroke-width:1.5px
+    classDef migration fill:#fed7aa,stroke:#fb923c,color:#9a3412,stroke-width:1.5px
+    classDef apps     fill:#fef3c7,stroke:#fbbf24,color:#78350f,stroke-width:1.5px
+    classDef obs      fill:#d1fae5,stroke:#34d399,color:#065f46,stroke-width:1.5px
+    classDef finops   fill:#fce7f3,stroke:#f472b6,color:#831843,stroke-width:1.5px
+    classDef ops      fill:#efebe3,stroke:#a8a29e,color:#3f3f46,stroke-width:1.5px
+
+    subgraph SRC[Source]
+        DEV["<b>Engineers</b><br/>commit changes"]:::source
+        GIT["<b>Git repository</b><br/>single source of truth"]:::source
+    end
+
+    subgraph DEL[Delivery automation]
+        CI["<b>CI / CD pipeline</b><br/>6 quality gates"]:::delivery
+        GOM["<b>GitOps manifests</b><br/>gitops/ directory"]:::delivery
+    end
+
+    subgraph INF[Infrastructure provisioning]
+        ANS["<b>Ansible</b><br/>config + node join"]:::infra
+        TF["<b>Terraform IaC</b><br/>provision all targets"]:::infra
+        ARGO["<b>Argo CD</b><br/>app-of-apps pattern"]:::delivery
+    end
+
+    subgraph TGT[Platform targets]
+        BM["<b>Bare metal</b><br/>Cisco · HPE · Dell"]:::target
+        VS["<b>vSphere</b><br/>on-prem VMs"]:::target
+        EKS["<b>AWS EKS</b><br/>managed cluster"]:::target
+        AKS["<b>Azure AKS</b><br/>managed cluster"]:::target
+        OCP["<b>OpenShift</b><br/>ROSA · IPI"]:::target
+        CE["<b>Cloud envs</b><br/>dev · stage · prod"]:::target
+    end
+
+    subgraph MIG[Migration]
+        MP["<b>Migration pipeline</b><br/>assess · containerize"]:::migration
+    end
+
+    subgraph KO[Kubernetes orchestration]
+        KUBE["<b>Kubernetes overlays</b><br/>per environment"]:::target
+    end
+
+    subgraph APP[Applications]
+        WAW["<b>Web UI · API · Worker</b><br/>+ migrated workloads"]:::apps
+    end
+
+    subgraph OBSF[Observability + FinOps]
+        PROM["<b>Prometheus · Grafana</b><br/>AlertManager → Slack"]:::obs
+        FIN["<b>FinOps + AIOps</b><br/>cost · anomaly · SLO"]:::finops
+    end
+
+    subgraph OP[Operations]
+        RUN["<b>Runbooks + SRE</b><br/>operational response"]:::ops
+    end
+
+    DEV --> GIT
+    GIT --> CI
+    GIT --> GOM
+    CI --> ANS
+    CI --> TF
+    GOM --> ARGO
+    ANS -.-> BM
+    TF --> BM
+    TF --> VS
+    TF --> EKS
+    TF --> AKS
+    TF --> OCP
+    TF --> CE
+    VS --> MP
+    ARGO --> KUBE
+    BM --> KUBE
+    VS --> KUBE
+    EKS --> KUBE
+    AKS --> KUBE
+    OCP --> KUBE
+    CE --> KUBE
+    MP --> KUBE
+    KUBE --> WAW
+    WAW --> PROM
+    WAW --> FIN
+    PROM --> RUN
+    FIN --> RUN
+```
+
+---
 
 ## Platform Summary
 
-This repository shows how a mission platform moves from infrastructure provisioning to application delivery and then into operations across both cloud and on-prem environments. It combines Terraform, Ansible, Kubernetes, Argo CD, observability, runbooks, and Python-based FinOps and AIOps utilities in one delivery model.
+This repository shows a mission platform moving from provisioning to delivery to operations, across cloud and on-prem, in one coherent model. It combines **Terraform, Ansible, Kubernetes, Argo CD, Prometheus/Grafana, runbooks, and Python FinOps/AIOps utilities** in a single workflow.
 
-It also demonstrates a **VM-to-Kubernetes migration path** (option 1: containerize): on-prem vSphere VMs are inventoried, rebuilt as containers, and deployed to **EKS (AWS)**, **AKS (Azure)**, or **OpenShift** — managed (ROSA on AWS), self-managed IPI on vSphere, or self-managed IPI on **bare metal** (Cisco UCS, HPE ProLiant, Dell PowerEdge) — via GitOps. See [migration/](migration/) and [runbooks/vm-to-k8s-migration.md](runbooks/vm-to-k8s-migration.md).
+It also demonstrates a **VM-to-Kubernetes migration path** (option 1: containerize). On-prem vSphere VMs are inventoried, rebuilt as containers, and deployed to **EKS**, **AKS**, or **OpenShift** — managed (ROSA on AWS), self-managed IPI on vSphere, or self-managed IPI on **bare metal** (Cisco UCS, HPE ProLiant, Dell PowerEdge) — via GitOps. See [migration/](migration/) and [runbooks/vm-to-k8s-migration.md](runbooks/vm-to-k8s-migration.md).
 
 ### Bare-metal OpenShift footprint
 
-For regulated, latency-sensitive, or hardware-attested workloads, NAWEX supports OpenShift running directly on physical servers — no hypervisor — across the three enterprise server families typically found in on-prem data centers:
+For regulated, latency-sensitive, or hardware-attested workloads, NAWEX supports OpenShift on physical servers with no hypervisor, across the three enterprise server families typical of on-prem data centers:
 
 | Vendor | Example platforms                   | BMC     | Redfish virtual-media scheme |
 |--------|-------------------------------------|---------|------------------------------|
@@ -29,75 +127,44 @@ For regulated, latency-sensitive, or hardware-attested workloads, NAWEX supports
 | HPE    | ProLiant DL360 / DL380              | iLO 5   | `ilo5-virtualmedia://`       |
 | Dell   | PowerEdge R650 / R750               | iDRAC 9 | `idrac-virtualmedia://`      |
 
-Terraform env [infra/terraform/envs/openshift-baremetal/](infra/terraform/envs/openshift-baremetal/) renders a compliant `platform: baremetal` install-config, translating a vendor-agnostic host list into the correct per-vendor Redfish URL. `openshift-install` then drives PXE-less, virtual-media installs over each host's BMC. Ansible inventory [infra/ansible/inventories/baremetal/](infra/ansible/inventories/baremetal/) groups nodes by vendor so the firmware-baseline playbook [infra/ansible/playbooks/baremetal-firmware-baseline.yml](infra/ansible/playbooks/baremetal-firmware-baseline.yml) can validate every BMC before install.
+Terraform env [infra/terraform/envs/openshift-baremetal/](infra/terraform/envs/openshift-baremetal/) renders a compliant `platform: baremetal` install-config, translating a vendor-agnostic host list into the correct per-vendor Redfish URL. `openshift-install` then drives PXE-less, virtual-media installs over each host's BMC. Ansible inventory [infra/ansible/inventories/baremetal/](infra/ansible/inventories/baremetal/) groups nodes by vendor so the firmware-baseline playbook [infra/ansible/playbooks/baremetal-firmware-baseline.yml](infra/ansible/playbooks/baremetal-firmware-baseline.yml) validates every BMC before install.
 
-## How The Platform Works
+---
 
-```mermaid
-flowchart LR
-    Dev[Engineers commit changes] --> GH[Git repository]
-    GH --> CI[Validation and deployment scripts]
-    CI --> TF[Terraform: bare metal, vSphere, AWS, Azure]
-    CI --> ANS[Ansible: Linux baseline + BMC firmware baseline + kubeadm join]
-    GH --> GO[GitOps manifests in gitops/]
-    GO --> ARGO[Argo CD app-of-apps]
-    ARGO --> K8S[Kubernetes overlays per environment]
-    TF --> BM[Bare metal: Cisco UCS / HPE ProLiant / Dell PowerEdge]
-    TF --> VS[vSphere VMs on-prem]
-    TF --> EKS[AWS EKS cluster]
-    TF --> AKS[Azure AKS cluster]
-    TF --> OCP[OpenShift: ROSA, vSphere IPI, or bare-metal IPI]
-    TF --> CLOUD[Cloud envs: dev, staging, prod]
-    ANS --> BM
-    ANS --> VS
-    ANS --> CLOUD
-    BM --> OCP
-    BM --> K8S
-    VS --> K8S
-    EKS --> K8S
-    AKS --> K8S
-    OCP --> K8S
-    CLOUD --> K8S
-    VS --> MIG[migration/ assess + containerize]
-    MIG --> EKS
-    MIG --> AKS
-    MIG --> OCP
-    K8S --> APPS[Web UI, API, Worker, migrated workloads]
-    APPS --> OBS[Prometheus, Grafana, AlertManager → Slack]
-    OBS --> OPS[Runbooks and SRE response]
-    APPS --> FIN[FinOps and AIOps analysis]
-    FIN --> OPS
-```
+## Repository Map
 
-## Domain Map
+| Directory | Purpose |
+|-----------|---------|
+| [architecture/](architecture/) | Target platform design, architecture views, SLI/SLO model. |
+| [app/](app/) | Deployable workloads — [web UI](app/nawex-web-ui/), [API](app/nawex-api/), [worker](app/nawex-worker/). |
+| [infra/terraform/](infra/terraform/) | Reusable modules + env compositions: cloud (dev/staging/prod), [on-prem vSphere](infra/terraform/envs/onprem/), [AWS EKS](infra/terraform/envs/aws-eks/), [Azure AKS](infra/terraform/envs/azure-aks/), [ROSA](infra/terraform/envs/openshift-rosa/), [OpenShift vSphere IPI](infra/terraform/envs/openshift-vsphere/), [OpenShift bare-metal IPI](infra/terraform/envs/openshift-baremetal/). |
+| [infra/ansible/](infra/ansible/) | Linux baseline, shared roles, per-env inventories — [static](infra/ansible/inventories/onprem/hosts.yml), [dynamic vSphere](infra/ansible/inventories/onprem/vmware.yml), [bare-metal by vendor](infra/ansible/inventories/baremetal/hosts.yml), and the [kubeadm-join](infra/ansible/playbooks/vsphere-join-cluster.yml) / [firmware-baseline](infra/ansible/playbooks/baremetal-firmware-baseline.yml) playbooks. |
+| [k8s/](k8s/) | Base manifests + overlays for [dev](k8s/overlays/dev/), [staging](k8s/overlays/staging/), [prod](k8s/overlays/prod/), [onprem](k8s/overlays/onprem/), [aws-eks](k8s/overlays/aws-eks/), [azure-aks](k8s/overlays/azure-aks/), [openshift](k8s/overlays/openshift/). |
+| [migration/](migration/) | VM→container tooling — [assess](migration/assess/), [containerize](migration/containerize/), [samples](migration/samples/). |
+| [gitops/](gitops/) | Argo CD layer — [root app](gitops/root-application.yaml), [project](gitops/project.yaml), [env apps](gitops/apps/), [local harness](gitops/local/). |
+| [observability/](observability/) | Prometheus, Grafana, [multi-burn-rate SLO alerts](observability/alerts/slo-alerts.yml), [AlertManager → Slack](observability/alertmanager/alertmanager.yml). |
+| [finops-aiops/](finops-aiops/) | Python utilities for anomaly detection, rightsizing, budget burn, SLO risk. |
+| [runbooks/](runbooks/) | Incident, rollback, K8s troubleshooting, cost response, [Slack alerting](runbooks/slack-alerting.md), [VM→K8s migration](runbooks/vm-to-k8s-migration.md), [OpenShift ops](runbooks/openshift-operations.md). |
+| [scripts/](scripts/) | Bootstrap, deploy, smoke-test, incident helpers, per-alert [remediation scripts](scripts/remediations/). |
 
-- [architecture/](architecture/) documents the target platform design, architecture views, and SLI/SLO model.
-- [app/](app/) contains the deployable workloads: [web UI](app/nawex-web-ui/), [API](app/nawex-api/), and [worker](app/nawex-worker/).
-- [infra/terraform/](infra/terraform/) defines reusable infrastructure modules and environment compositions: cloud envs (dev, staging, prod), the [on-prem vSphere environment](infra/terraform/envs/onprem/) (uses the [nawex-vsphere module](infra/terraform/modules/nawex-vsphere/)), migration target clusters [AWS EKS](infra/terraform/envs/aws-eks/) and [Azure AKS](infra/terraform/envs/azure-aks/), and OpenShift targets [ROSA](infra/terraform/envs/openshift-rosa/) (managed on AWS), [self-managed IPI on vSphere](infra/terraform/envs/openshift-vsphere/), and [self-managed IPI on bare metal](infra/terraform/envs/openshift-baremetal/) (Cisco UCS, HPE ProLiant, Dell PowerEdge via Redfish).
-- [infra/ansible/](infra/ansible/) holds Linux baseline automation, shared roles, and per-environment inventories. On-prem supports a [static host list](infra/ansible/inventories/onprem/hosts.yml), a [dynamic vSphere inventory](infra/ansible/inventories/onprem/vmware.yml), and a [kubeadm-join playbook](infra/ansible/playbooks/vsphere-join-cluster.yml). The [bare-metal inventory](infra/ansible/inventories/baremetal/hosts.yml) groups nodes by vendor (Cisco UCS, HPE ProLiant, Dell PowerEdge) and drives the [firmware-baseline playbook](infra/ansible/playbooks/baremetal-firmware-baseline.yml) that validates every BMC (CIMC/iLO/iDRAC) before install.
-- [k8s/](k8s/) contains the Kubernetes base manifests and overlays for [dev](k8s/overlays/dev/), [staging](k8s/overlays/staging/), [prod](k8s/overlays/prod/), [onprem](k8s/overlays/onprem/), [aws-eks](k8s/overlays/aws-eks/), [azure-aks](k8s/overlays/azure-aks/), and [openshift](k8s/overlays/openshift/) (ships a `Route`, an SCC RoleBinding for non-root pods, and PSA-restricted namespace labels).
-- [migration/](migration/) contains the VM-to-container migration tooling: [assess](migration/assess/) (inventory vCenter VMs → WorkloadProfile stubs), [containerize](migration/containerize/) (WorkloadProfile → Dockerfile + K8s manifest), and [samples](migration/samples/).
-- [gitops/](gitops/) contains the Argo CD GitOps layer, including the [root application](gitops/root-application.yaml), [project](gitops/project.yaml), the [environment apps](gitops/apps/), and the [local test harness](gitops/local/).
-- [observability/](observability/) contains Prometheus configuration, Grafana dashboards, [multi-burn-rate SLO alerts](observability/alerts/slo-alerts.yml), and an [AlertManager → Slack](observability/alertmanager/alertmanager.yml) pipeline.
-- [finops-aiops/](finops-aiops/) contains Python utilities for anomaly detection, rightsizing, budget burn prediction, and SLO risk analysis.
-- [runbooks/](runbooks/) contains operational procedures for incidents, rollback, Kubernetes troubleshooting, cost response, the [Slack alerting flow](runbooks/slack-alerting.md), [VM→K8s migration](runbooks/vm-to-k8s-migration.md), and [OpenShift-specific operations](runbooks/openshift-operations.md).
-- [scripts/](scripts/) contains bootstrap, deployment, smoke-test, and incident-response helpers, plus per-alert [remediation scripts](scripts/remediations/).
+---
 
 ## What This Proves
 
-- Infrastructure as code with reusable Terraform modules across **bare metal (Cisco / HPE / Dell), vSphere, AWS, and Azure**
-- Configuration management with Ansible, including a dynamic vSphere inventory and a vendor-grouped bare-metal inventory with BMC firmware-baseline validation
-- Kubernetes packaging with base + overlay separation across **seven targets** (dev, staging, prod, onprem, aws-eks, azure-aks, openshift)
-- GitOps delivery with Argo CD application manifests, scoped `AppProject` roles, per-env retry policy
-- Hybrid environment management across bare-metal, cloud, and on-prem virtualized targets, plus a migration bridge between them
-- **VM-to-K8s migration (option 1 — containerize):** assess vSphere VMs → generate Dockerfile + manifests → deploy to EKS, AKS, or OpenShift (managed ROSA, self-managed vSphere IPI, or bare-metal IPI) via GitOps
-- Observability, alerting with Slack approve/deny flow, and SRE operating practices
-- FinOps and AIOps automation embedded into the platform workflow
+- Infrastructure as code across **bare metal (Cisco / HPE / Dell), vSphere, AWS, Azure** with reusable Terraform modules.
+- Ansible configuration management with a dynamic vSphere inventory and a vendor-grouped bare-metal inventory with BMC firmware-baseline validation.
+- Kubernetes packaging with base + overlay separation across **seven targets** (dev, staging, prod, onprem, aws-eks, azure-aks, openshift).
+- GitOps delivery with Argo CD, scoped `AppProject` roles, per-env retry policy.
+- Hybrid management across bare-metal, cloud, and on-prem virtualized targets — plus a migration bridge between them.
+- **VM-to-K8s migration** (containerize): assess vSphere VMs → generate Dockerfile + manifests → deploy to EKS, AKS, or OpenShift via GitOps.
+- Observability, Slack approve/deny incident flow, SRE operating practices.
+- FinOps and AIOps automation embedded directly in the platform workflow.
+
+---
 
 ## Alerting + Incident Response (Slack)
 
-Engineers get paged in Slack when SLO burn, crashlooping pods, or budget drift trip
-a rule. Each alert carries a remediation hint and a one-line approve/deny command.
+Engineers get paged in Slack when SLO burn, crashlooping pods, or budget drift trip a rule. Each alert carries a remediation hint and a one-line approve/deny command.
 
 ```text
 Prometheus rules  ──►  AlertManager  ──►  Slack channel
@@ -114,31 +181,32 @@ Prometheus rules  ──►  AlertManager  ──►  Slack channel
 
 - **Alert rules** live in [observability/alerts/slo-alerts.yml](observability/alerts/slo-alerts.yml). Each rule has a `remediation_action` label that maps 1:1 to a script in [scripts/remediations/](scripts/remediations/).
 - **AlertManager** routes via [observability/alertmanager/alertmanager.yml](observability/alertmanager/alertmanager.yml) using `${SLACK_WEBHOOK_URL}`. The Slack message body is rendered from [slack.tmpl](observability/alertmanager/templates/slack.tmpl) and always includes the summary, the runbook URL, and copy-ready `approve` / `deny` / `show` commands.
-- **Receiver**: [scripts/alert_webhook.py](scripts/alert_webhook.py) persists each alert to `.incidents/<fingerprint>.json` so engineers can triage offline.
-- **Engineer workflow** (on-call receives Slack ping):
-  1. `./scripts/incident_respond.sh show <id>` — preview the incident and the exact plan in `DRY_RUN=1`.
-  2. Approve to run the mapped remediation, or deny to acknowledge without action.
-  3. Audit trail posts back to Slack if `SLACK_WEBHOOK_URL` is set.
+- **Receiver** — [scripts/alert_webhook.py](scripts/alert_webhook.py) persists each alert to `.incidents/<fingerprint>.json` so engineers can triage offline.
+- **Engineer workflow** on Slack page:
+  1. `./scripts/incident_respond.sh show <id>` — preview incident + exact plan in `DRY_RUN=1`.
+  2. Approve to run the mapped remediation, or deny to ack without action.
+  3. Audit trail posts back to Slack when `SLACK_WEBHOOK_URL` is set.
 
 Full procedure, remediation table, and a local end-to-end test live in [runbooks/slack-alerting.md](runbooks/slack-alerting.md).
 
+---
+
 ## Security Posture
 
-- Kubernetes namespaces are labeled for Pod Security Admission `restricted` enforcement.
-- The API workload uses a dedicated service account with `automountServiceAccountToken: false`.
-- Containers run as non-root with `RuntimeDefault` seccomp, dropped Linux capabilities, `readOnlyRootFilesystem`, no privilege escalation, and a startup/readiness/liveness probe triad.
-- A `PodDisruptionBudget` and `topologySpreadConstraints` keep the API available during node churn.
-- Argo CD project permissions are scoped to the resource kinds this platform actually deploys (no wildcards), with read-only and ops roles declared in the AppProject.
-- Network policy keeps the default-deny stance and adds only the minimum ingress and DNS egress needed for the sample service.
-- CI runs **Hadolint** on every Dockerfile, **Trivy** against each built image (CRITICAL/HIGH gate), **kubeconform** against every overlay, **tfsec** + **checkov** on Terraform, **ruff** + **pytest** on Python, and **shellcheck** on all scripts.
+- Kubernetes namespaces labeled for Pod Security Admission `restricted` enforcement.
+- API workload uses a dedicated service account with `automountServiceAccountToken: false`.
+- Containers run as non-root with `RuntimeDefault` seccomp, dropped Linux capabilities, `readOnlyRootFilesystem`, no privilege escalation, and a startup / readiness / liveness probe triad.
+- `PodDisruptionBudget` + `topologySpreadConstraints` keep the API available during node churn.
+- Argo CD project permissions scoped to the resource kinds this platform actually deploys (no wildcards); read-only and ops roles declared in the AppProject.
+- Network policy keeps default-deny and adds only the minimum ingress + DNS egress needed.
+- CI runs **Hadolint** on every Dockerfile, **Trivy** against each built image (CRITICAL/HIGH gate), **kubeconform** against every overlay, **tfsec** + **checkov** on Terraform, **ruff** + **pytest** on Python, **shellcheck** on every script.
 - Web UI HTML ships a strict CSP and related headers; API Docker image is a distroless-style multi-stage build served by gunicorn with a container HEALTHCHECK.
+
+---
 
 ## CI/CD — GitHub Actions and GitLab CI/CD
 
-The platform ships **two interchangeable CI/CD implementations** so the same
-quality gates run on whichever SCM a team standardizes on. Both pipelines
-execute the same six-stage quality gate (lint → security → test → validate →
-build → deploy) and both hand off to Argo CD for cluster reconciliation.
+The platform ships **two interchangeable CI/CD implementations** so the same quality gates run on whichever SCM a team standardizes on. Both pipelines execute the same six-stage quality gate (lint → security → test → validate → build → deploy) and both hand off to Argo CD for cluster reconciliation.
 
 | Stage | GitHub Actions ([.github/workflows/](.github/workflows/)) | GitLab CI/CD ([.gitlab-ci.yml](.gitlab-ci.yml)) | Tools |
 | ----- | --------------------------------------------------------- | ----------------------------------------------- | ----- |
@@ -153,38 +221,38 @@ build → deploy) and both hand off to Argo CD for cluster reconciliation.
 ### Running the GitLab pipeline
 
 1. **Import the repo** into a GitLab project (or push to a GitLab remote). GitLab auto-detects [.gitlab-ci.yml](.gitlab-ci.yml).
-2. **Configure CI/CD variables** in *Settings → CI/CD → Variables*: `SLACK_WEBHOOK_URL` (optional, masked), and cloud credentials (`AWS_*`, `ARM_*`) if you want `terraform plan` to run against real cloud envs.
-3. **Container registry** is available out of the box — `docker:build` pushes to `$CI_REGISTRY_IMAGE/<image>:<short-sha>` on `main` using the built-in `$CI_REGISTRY_USER` / `$CI_REGISTRY_PASSWORD` tokens.
+2. **Configure CI/CD variables** in *Settings → CI/CD → Variables*: `SLACK_WEBHOOK_URL` (optional, masked), and cloud credentials (`AWS_*`, `ARM_*`) for `terraform plan` against real cloud envs.
+3. **Container registry** — `docker:build` pushes to `$CI_REGISTRY_IMAGE/<image>:<short-sha>` on `main` using the built-in `$CI_REGISTRY_USER` / `$CI_REGISTRY_PASSWORD` tokens.
 4. **Weekly FinOps job** — create a pipeline schedule (*CI/CD → Schedules*) with cron `0 12 * * 1` and variable `RUN_FINOPS=1`. Reports are uploaded as job artifacts and posted to Slack when `SLACK_WEBHOOK_URL` is set.
 5. **Production deploys** — `deploy:prod` is `when: manual` and scoped to the `prod` GitLab environment, matching the GitHub `workflow_dispatch` gate and Argo CD's `automated: false` stance for prod.
 
-Both pipelines validate the same Terraform envs (dev, staging, prod, onprem, aws-eks, azure-aks, openshift-rosa, openshift-vsphere, openshift-baremetal) and the same seven Kustomize overlays, so the SCM choice is a **deployment detail**, not an architectural commitment.
+Both pipelines validate the same Terraform envs (dev, staging, prod, onprem, aws-eks, azure-aks, openshift-rosa, openshift-vsphere, openshift-baremetal) and the same seven Kustomize overlays, so SCM choice is a **deployment detail**, not an architectural commitment.
+
+---
 
 ## GitOps Flow
 
 1. Platform changes land in Git and are validated by local or CI automation.
-2. Infrastructure and host baseline changes are managed through Terraform and Ansible.
+2. Infrastructure and host baseline changes flow through Terraform and Ansible.
 3. Argo CD reads [gitops/root-application.yaml](gitops/root-application.yaml) and syncs the child applications from [gitops/apps/](gitops/apps/).
 4. Each GitOps application points to a Kubernetes environment overlay under [k8s/overlays/](k8s/overlays/), including the [on-prem deployment path](k8s/overlays/onprem/).
 5. Runtime telemetry flows into [observability/](observability/) and can be acted on with [runbooks/](runbooks/) and [finops-aiops/](finops-aiops/).
 
+---
+
 ## Local Argo CD Test
 
-Use the local harness when you want to validate the GitOps flow on your workstation without changing the main Argo CD application set.
+Use the local harness to validate the GitOps flow on your workstation without touching the main Argo CD application set.
 
 1. Run `./scripts/start_local_gitops.sh`.
-2. Port-forward Argo CD with `kubectl port-forward svc/argocd-server -n argocd 8080:443`.
-3. Port-forward the sample workload with `kubectl port-forward svc/nawex-api -n nawex-local 8081:80`.
-4. Validate the deployment with `./scripts/smoke_test.sh`.
-5. Tear everything down with `./scripts/stop_local_gitops.sh`.
+2. Port-forward Argo CD — `kubectl port-forward svc/argocd-server -n argocd 8080:443`.
+3. Port-forward the sample workload — `kubectl port-forward svc/nawex-api -n nawex-local 8081:80`.
+4. Validate the deployment — `./scripts/smoke_test.sh`.
+5. Tear down — `./scripts/stop_local_gitops.sh`.
 
-What the local harness does:
+The harness creates a `kind` cluster from [test/kind/argocd-kind.yaml](test/kind/argocd-kind.yaml), builds the API image from [app/nawex-api/](app/nawex-api/) as `nawex-api:local`, snapshots the workspace into a local bare Git repo so Argo CD can reconcile uncommitted changes, installs Argo CD, applies [gitops/local/root-application.yaml](gitops/local/root-application.yaml) which syncs [gitops/local/apps/local-platform.yaml](gitops/local/apps/local-platform.yaml), and deploys [k8s/overlays/local/](k8s/overlays/local/) into the `nawex-local` namespace.
 
-- Creates a `kind` cluster from [test/kind/argocd-kind.yaml](test/kind/argocd-kind.yaml).
-- Builds the API image from [app/nawex-api/](app/nawex-api/) and loads it into the cluster as `nawex-api:local`.
-- Snapshots the current workspace into a local bare Git repository so Argo CD can reconcile even uncommitted changes.
-- Installs Argo CD and applies [gitops/local/root-application.yaml](gitops/local/root-application.yaml), which syncs [gitops/local/apps/local-platform.yaml](gitops/local/apps/local-platform.yaml).
-- Deploys the local Kubernetes overlay from [k8s/overlays/local/](k8s/overlays/local/) into the `nawex-local` namespace.
+---
 
 ## Development
 
@@ -203,16 +271,20 @@ for o in k8s/overlays/*; do kustomize build "$o" >/dev/null; done
 cp .env.example .env
 ```
 
+---
+
 ## About the Author
 
 **Emmanuel Naweji** is a platform engineer and applied AI researcher whose work sits at the intersection of large-scale distributed systems and trustworthy machine intelligence in regulated domains.
 
-- **Industry experience.** Delivered platform, cloud, and reliability engineering for global enterprises including **IBM**, **Comcast**, and other Fortune-class organizations — environments where production posture spans regulated workloads, multi-region footprints, and multi-million-dollar cloud budgets.
-- **Research.** PhD researcher focused on **AI / ML / Robotics applied to highly regulated environments** — including safety-critical, audit-bound, and human-in-the-loop systems. Research interests span MLOps and LLMOps for regulated workloads, autonomy under formal constraints, model governance, and the operational substrate (observability, lineage, drift detection) required to deploy learning systems where compliance and reliability are equally non-negotiable.
-- **Engineering practice.** Hybrid cloud (AWS, Azure, GCP, OpenShift, vSphere), Kubernetes platform engineering, GitOps, FinOps, SRE, and AIOps. Comfortable from the kernel up to the model-serving layer, and from a single Terraform module to a multi-cluster app-of-apps topology.
+- **Industry experience.** Platform, cloud, and reliability engineering for global enterprises including **IBM**, **Comcast**, and other Fortune-class organizations — environments where production posture spans regulated workloads, multi-region footprints, and multi-million-dollar cloud budgets.
+- **Research.** PhD researcher focused on **AI / ML / Robotics applied to highly regulated environments** — safety-critical, audit-bound, human-in-the-loop systems. Research interests span MLOps and LLMOps for regulated workloads, autonomy under formal constraints, model governance, and the operational substrate (observability, lineage, drift detection) required to deploy learning systems where compliance and reliability are equally non-negotiable.
+- **Engineering practice.** Hybrid cloud (AWS, Azure, GCP, OpenShift, vSphere), Kubernetes platform engineering, GitOps, FinOps, SRE, AIOps. Comfortable from the kernel up to the model-serving layer, and from a single Terraform module to a multi-cluster app-of-apps topology.
 - **Operating philosophy.** Build platforms that compound: every change reviewable, every cost attributable, every alert actionable, every model auditable. This repository is one expression of that philosophy.
 
 NAWEX is the reference implementation that captures these patterns in a form others can read, run, and adapt.
+
+---
 
 ## Notes
 
