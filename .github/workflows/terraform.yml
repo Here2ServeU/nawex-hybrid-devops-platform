@@ -1,10 +1,7 @@
 name: terraform
 
+# Automatic triggers disabled. To run: gh workflow run terraform.yml  OR  GitHub → Actions → terraform → Run workflow
 on:
-  pull_request:
-    paths:
-      - "infra/terraform/**"
-      - ".github/workflows/terraform.yml"
   workflow_dispatch:
 
 concurrency:

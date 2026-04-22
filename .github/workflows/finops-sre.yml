@@ -1,8 +1,7 @@
 name: finops-sre
 
+# Automatic triggers disabled. To run: gh workflow run finops-sre.yml  OR  GitHub → Actions → finops-sre → Run workflow
 on:
-  schedule:
-    - cron: "0 12 * * 1"
   workflow_dispatch:
 
 concurrency:

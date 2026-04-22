@@ -1,9 +1,8 @@
 name: ci
 
+# Automatic triggers disabled. To run: gh workflow run ci.yml  OR  GitHub → Actions → CI → Run workflow
 on:
-  pull_request:
-  push:
-    branches: [main]
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.ref }}
