@@ -137,7 +137,7 @@ Terraform env [infra/terraform/envs/openshift-baremetal/](infra/terraform/envs/o
 
 | Directory | Purpose |
 |-----------|---------|
-| [architecture/](architecture/) | Target platform design, architecture views, SLI/SLO model. |
+| [architecture/](architecture/) | New here? Start with [onboarding.md](architecture/onboarding.md). Then: target platform design, [operations reference](architecture/platform-operations-reference.md), and [SLI/SLO model](architecture/sli-slo-model.md). |
 | [app/](app/) | Deployable workloads — [web UI](app/nawex-web-ui/), [API](app/nawex-api/), [worker](app/nawex-worker/). |
 | [infra/terraform/](infra/terraform/) | Reusable modules + env compositions: cloud (dev/staging/prod), [on-prem vSphere](infra/terraform/envs/onprem/), [AWS EKS](infra/terraform/envs/aws-eks/), [Azure AKS](infra/terraform/envs/azure-aks/), [ROSA](infra/terraform/envs/openshift-rosa/), [OpenShift vSphere IPI](infra/terraform/envs/openshift-vsphere/), [OpenShift bare-metal IPI](infra/terraform/envs/openshift-baremetal/). |
 | [infra/ansible/](infra/ansible/) | Everything Ansible: the mandatory Linux baseline ([system](infra/ansible/roles/system/), [security](infra/ansible/roles/security/), [observability](infra/ansible/roles/observability/), [docker](infra/ansible/roles/docker/)) orchestrated by [playbooks/linux-baseline.yml](infra/ansible/playbooks/linux-baseline.yml); the [BMC firmware preflight](infra/ansible/roles/baremetal-bmc/) for bare metal; per-env inventories ([static](infra/ansible/inventories/onprem/hosts.yml), [dynamic vSphere](infra/ansible/inventories/onprem/vmware.yml), [bare-metal by vendor](infra/ansible/inventories/baremetal/hosts.yml)); no-Ansible fallback scripts ([harden.sh](infra/ansible/scripts/harden.sh), [install_monitoring.sh](infra/ansible/scripts/install_monitoring.sh), [cost_check.sh](infra/ansible/scripts/cost_check.sh)); compliance artifacts ([CIS checklist](infra/ansible/compliance/cis-checklist.md), [audit-rules](infra/ansible/compliance/audit-rules.conf)); and the [baseline rationale](infra/ansible/docs/baseline-explained.md). |
@@ -146,7 +146,7 @@ Terraform env [infra/terraform/envs/openshift-baremetal/](infra/terraform/envs/o
 | [gitops/](gitops/) | Argo CD layer — [root app](gitops/root-application.yaml), [project](gitops/project.yaml), [env apps](gitops/apps/), [local harness](gitops/local/). |
 | [observability/](observability/) | Prometheus, Grafana, [multi-burn-rate SLO alerts](observability/alerts/slo-alerts.yml), [AlertManager → Slack](observability/alertmanager/alertmanager.yml). |
 | [finops-aiops/](finops-aiops/) | Python utilities for anomaly detection, rightsizing, budget burn, SLO risk. |
-| [runbooks/](runbooks/) | Incident, rollback, K8s troubleshooting, cost response, [Slack alerting](runbooks/slack-alerting.md), [VM→K8s migration](runbooks/vm-to-k8s-migration.md), [OpenShift ops](runbooks/openshift-operations.md). |
+| [runbooks/](runbooks/) | Start with the [layer-by-layer troubleshooting guide](runbooks/troubleshooting.md). Focused runbooks: [incident](runbooks/incident-response.md), [rollback](runbooks/rollback.md), [K8s](runbooks/k8s-troubleshooting.md), [cost](runbooks/cost-optimization.md), [Slack alerting](runbooks/slack-alerting.md), [VM→K8s migration](runbooks/vm-to-k8s-migration.md), [OpenShift ops](runbooks/openshift-operations.md). |
 | [scripts/](scripts/) | Bootstrap, deploy, smoke-test, incident helpers, per-alert [remediation scripts](scripts/remediations/). |
 
 ---

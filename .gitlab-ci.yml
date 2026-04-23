@@ -2,7 +2,7 @@
 #
 # Mirrors the GitHub Actions workflows in .github/workflows/ so the platform
 # is portable across SCMs. Stages map 1:1 to the six quality gates described
-# in architecture/platform-learning-guide.md (Module 2).
+# in the README (§ CI/CD — GitHub Actions and GitLab CI/CD).
 #
 #   lint       — ruff, shellcheck, terraform fmt, hadolint
 #   security   — tfsec, checkov, trivy image scan
