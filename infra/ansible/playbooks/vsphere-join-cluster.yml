@@ -7,7 +7,10 @@
   hosts: vsphere_vms
   become: true
   roles:
-    - common
+    - system
+    - security
+    - observability
+    - docker
 
 - name: Join vSphere VMs to on-prem Kubernetes cluster
   hosts: vsphere_vms

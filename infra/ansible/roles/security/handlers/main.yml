@@ -1,0 +1,9 @@
+---
+- name: restart sshd
+  ansible.builtin.service:
+    name: sshd
+    state: restarted
+
+- name: reload auditd
+  ansible.builtin.command: augenrules --load
+  changed_when: true

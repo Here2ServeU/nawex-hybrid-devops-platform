@@ -1,0 +1,34 @@
+---
+- name: Deploy NAWEX auditd ruleset
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../compliance/audit-rules.conf"
+    dest: /etc/audit/rules.d/nawex.rules
+    owner: root
+    group: root
+    mode: '0640'
+  notify: reload auditd
+
+- name: Harden SSH daemon
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: "^#?{{ item.key }} "
+    line: "{{ item.key }} {{ item.value }}"
+    state: present
+    validate: '/usr/sbin/sshd -t -f %s'
+  loop:
+    - { key: Protocol,               value: '2' }
+    - { key: PermitRootLogin,        value: 'no' }
+    - { key: PasswordAuthentication, value: 'no' }
+    - { key: PermitEmptyPasswords,   value: 'no' }
+    - { key: X11Forwarding,          value: 'no' }
+    - { key: MaxAuthTries,           value: '4' }
+    - { key: ClientAliveInterval,    value: '300' }
+    - { key: ClientAliveCountMax,    value: '2' }
+    - { key: LogLevel,               value: 'VERBOSE' }
+  notify: restart sshd
+
+- name: Ensure auditd is enabled and running
+  ansible.builtin.service:
+    name: auditd
+    enabled: true
+    state: started

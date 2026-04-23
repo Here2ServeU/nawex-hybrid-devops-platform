@@ -45,7 +45,7 @@ flowchart TB
     end
 
     subgraph INF[Infrastructure provisioning]
-        ANS["<b>Ansible</b><br/>config + node join"]:::infra
+        ANS["<b>Ansible</b><br/>Linux baseline · CIS · auditd<br/>node_exporter · kubeadm join"]:::infra
         TF["<b>Terraform IaC</b><br/>provision all targets"]:::infra
         ARGO["<b>Argo CD</b><br/>app-of-apps pattern"]:::delivery
     end
@@ -87,6 +87,8 @@ flowchart TB
     CI --> TF
     GOM --> ARGO
     ANS -.-> BM
+    ANS -.-> VS
+    ANS -.-> CE
     TF --> BM
     TF --> VS
     TF --> EKS
@@ -138,7 +140,7 @@ Terraform env [infra/terraform/envs/openshift-baremetal/](infra/terraform/envs/o
 | [architecture/](architecture/) | Target platform design, architecture views, SLI/SLO model. |
 | [app/](app/) | Deployable workloads — [web UI](app/nawex-web-ui/), [API](app/nawex-api/), [worker](app/nawex-worker/). |
 | [infra/terraform/](infra/terraform/) | Reusable modules + env compositions: cloud (dev/staging/prod), [on-prem vSphere](infra/terraform/envs/onprem/), [AWS EKS](infra/terraform/envs/aws-eks/), [Azure AKS](infra/terraform/envs/azure-aks/), [ROSA](infra/terraform/envs/openshift-rosa/), [OpenShift vSphere IPI](infra/terraform/envs/openshift-vsphere/), [OpenShift bare-metal IPI](infra/terraform/envs/openshift-baremetal/). |
-| [infra/ansible/](infra/ansible/) | Linux baseline, shared roles, per-env inventories — [static](infra/ansible/inventories/onprem/hosts.yml), [dynamic vSphere](infra/ansible/inventories/onprem/vmware.yml), [bare-metal by vendor](infra/ansible/inventories/baremetal/hosts.yml), and the [kubeadm-join](infra/ansible/playbooks/vsphere-join-cluster.yml) / [firmware-baseline](infra/ansible/playbooks/baremetal-firmware-baseline.yml) playbooks. |
+| [infra/ansible/](infra/ansible/) | Everything Ansible: the mandatory Linux baseline ([system](infra/ansible/roles/system/), [security](infra/ansible/roles/security/), [observability](infra/ansible/roles/observability/), [docker](infra/ansible/roles/docker/)) orchestrated by [playbooks/linux-baseline.yml](infra/ansible/playbooks/linux-baseline.yml); the [BMC firmware preflight](infra/ansible/roles/baremetal-bmc/) for bare metal; per-env inventories ([static](infra/ansible/inventories/onprem/hosts.yml), [dynamic vSphere](infra/ansible/inventories/onprem/vmware.yml), [bare-metal by vendor](infra/ansible/inventories/baremetal/hosts.yml)); no-Ansible fallback scripts ([harden.sh](infra/ansible/scripts/harden.sh), [install_monitoring.sh](infra/ansible/scripts/install_monitoring.sh), [cost_check.sh](infra/ansible/scripts/cost_check.sh)); compliance artifacts ([CIS checklist](infra/ansible/compliance/cis-checklist.md), [audit-rules](infra/ansible/compliance/audit-rules.conf)); and the [baseline rationale](infra/ansible/docs/baseline-explained.md). |
 | [k8s/](k8s/) | Base manifests + overlays for [dev](k8s/overlays/dev/), [staging](k8s/overlays/staging/), [prod](k8s/overlays/prod/), [onprem](k8s/overlays/onprem/), [aws-eks](k8s/overlays/aws-eks/), [azure-aks](k8s/overlays/azure-aks/), [openshift](k8s/overlays/openshift/). |
 | [migration/](migration/) | VM→container tooling — [assess](migration/assess/), [containerize](migration/containerize/), [samples](migration/samples/). |
 | [gitops/](gitops/) | Argo CD layer — [root app](gitops/root-application.yaml), [project](gitops/project.yaml), [env apps](gitops/apps/), [local harness](gitops/local/). |
@@ -152,6 +154,7 @@ Terraform env [infra/terraform/envs/openshift-baremetal/](infra/terraform/envs/o
 ## What This Proves
 
 - Infrastructure as code across **bare metal (Cisco / HPE / Dell), vSphere, AWS, Azure** with reusable Terraform modules.
+- A [mandatory Linux baseline](infra/ansible/playbooks/linux-baseline.yml) — `system`, `security`, `observability`, and `docker` Ansible roles, plus no-Ansible fallback scripts, a CIS checklist, and an auditd ruleset — applied uniformly to every host across the hybrid fleet.
 - Ansible configuration management with a dynamic vSphere inventory and a vendor-grouped bare-metal inventory with BMC firmware-baseline validation.
 - Kubernetes packaging with base + overlay separation across **seven targets** (dev, staging, prod, onprem, aws-eks, azure-aks, openshift).
 - GitOps delivery with Argo CD, scoped `AppProject` roles, per-env retry policy.

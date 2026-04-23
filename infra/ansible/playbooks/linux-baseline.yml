@@ -1,6 +1,26 @@
 ---
+# NAWEX Linux Baseline
+#
+# Mandatory posture every NAWEX-managed Linux host must carry before it can
+# join a cluster, serve traffic, or be presented for audit. Applied fleet-
+# wide to bare-metal nodes (Cisco / HPE / Dell), vSphere VMs, and cloud
+# instances — one posture, many substrates.
+#
+# Order matters: `system` primes packages/sysctl, `security` hardens access
+# and auditd, `observability` installs node_exporter, `docker` lands the
+# hardened container runtime last so its config is recorded by auditd from
+# the start.
+
 - name: Apply Linux baseline for NAWEX platform nodes
   hosts: linux_nodes
   become: true
+  gather_facts: true
   roles:
-    - common
+    - role: system
+      tags: [baseline, system]
+    - role: security
+      tags: [baseline, security, cis]
+    - role: observability
+      tags: [baseline, observability]
+    - role: docker
+      tags: [baseline, docker]
