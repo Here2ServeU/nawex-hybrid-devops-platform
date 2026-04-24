@@ -1,5 +1,12 @@
 # NAWEX — Naweji Enterprise Excellence Platform
 
+[![CI](https://github.com/Here2ServeU/nawex-hybrid-devops-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/Here2ServeU/nawex-hybrid-devops-platform/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+![Terraform](https://img.shields.io/badge/terraform-1.6+-623CE4.svg)
+![Kubernetes](https://img.shields.io/badge/kubernetes-1.28+-326CE5.svg)
+![OpenShift](https://img.shields.io/badge/openshift-4.14+-EE0000.svg)
+![Python](https://img.shields.io/badge/python-3.11+-3776AB.svg)
+
 > **Hybrid DevOps, FinOps, SRE, AIOps, and GitOps reference implementation for regulated mission workloads.**
 
 A working reference architecture for delivering, operating, and continuously optimizing mission-critical systems across **bare metal, vSphere, AWS, and Azure** — under one control plane, one set of quality gates, and one observability substrate.

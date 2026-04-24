@@ -1,0 +1,22 @@
+# NAWEX Platform — code owners
+# Syntax: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-security/customizing-your-repository/about-code-owners
+
+# Default owner for everything in the repo.
+*                               @Here2ServeU
+
+# Domain-specific ownership.
+/infra/terraform/               @Here2ServeU
+/infra/ansible/                 @Here2ServeU
+/k8s/                           @Here2ServeU
+/gitops/                        @Here2ServeU
+/observability/                 @Here2ServeU
+/finops-aiops/                  @Here2ServeU
+/migration/                     @Here2ServeU
+/scripts/                       @Here2ServeU
+/runbooks/                      @Here2ServeU
+
+# Pipeline and repo-wide policy files.
+/.github/                       @Here2ServeU
+/.gitlab-ci.yml                 @Here2ServeU
+/SECURITY.md                    @Here2ServeU
+/LICENSE                        @Here2ServeU

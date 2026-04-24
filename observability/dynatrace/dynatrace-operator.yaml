@@ -1,0 +1,68 @@
+---
+# Dynatrace integration — placeholder manifest.
+#
+# The NAWEX observability substrate is Prometheus/Grafana/Alertmanager by
+# default. For environments that standardize on Dynatrace (e.g. regulated
+# on-prem programs that already license it), this manifest stands up the
+# Dynatrace Operator alongside the platform defaults so both metric paths
+# are satisfied without forcing a migration.
+#
+# Populate the apiUrl and tokens from your tenant before applying. Tokens
+# are deliberately left as external references — commit only the shape,
+# never the secret material.
+#
+# Reference: https://docs.dynatrace.com/docs/setup-and-configuration/setup-on-k8s
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: dynatrace
+  labels:
+    pod-security.kubernetes.io/enforce: privileged  # OneAgent requires host access
+    app.kubernetes.io/part-of: nawex-observability
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: dynakube
+  namespace: dynatrace
+type: Opaque
+stringData:
+  # Populate via External Secrets / Vault / sealed-secrets — do NOT commit real values.
+  apiToken: "REPLACE_FROM_SECRET_STORE"
+  dataIngestToken: "REPLACE_FROM_SECRET_STORE"
+---
+apiVersion: dynatrace.com/v1beta3
+kind: DynaKube
+metadata:
+  name: nawex
+  namespace: dynatrace
+spec:
+  # Tenant API endpoint — environment-specific, supply per cluster.
+  apiUrl: "https://<TENANT>.live.dynatrace.com/api"
+
+  # Scrape targets — mirror what Prometheus already covers so dashboards align.
+  metadataEnrichment:
+    enabled: true
+
+  # Full-stack monitoring: OneAgent on every node + routed metric ingest.
+  oneAgent:
+    cloudNativeFullStack:
+      tolerations:
+        - effect: NoSchedule
+          operator: Exists
+      nodeSelector:
+        kubernetes.io/os: linux
+
+  activeGate:
+    capabilities:
+      - routing
+      - kubernetes-monitoring
+      - dynatrace-api
+    replicas: 2
+    resources:
+      requests:
+        cpu: "500m"
+        memory: "512Mi"
+      limits:
+        cpu: "1000m"
+        memory: "1Gi"

@@ -33,3 +33,11 @@
     name: chrony
     enabled: true
     state: started
+
+- name: Deploy NAWEX bash environment baseline (fleet-wide via /etc/profile.d)
+  ansible.builtin.copy:
+    src: bash_profile_baseline.sh
+    dest: /etc/profile.d/nawex-baseline.sh
+    owner: root
+    group: root
+    mode: "0644"
