@@ -154,7 +154,7 @@ Terraform env [infra/terraform/envs/openshift-baremetal/](infra/terraform/envs/o
 | [observability/](observability/) | Prometheus, Grafana, [multi-burn-rate SLO alerts](observability/alerts/slo-alerts.yml), [AlertManager → Slack](observability/alertmanager/alertmanager.yml). |
 | [finops-aiops/](finops-aiops/) | Python utilities for anomaly detection, rightsizing, budget burn, SLO risk. |
 | [runbooks/](runbooks/) | Start with the [layer-by-layer troubleshooting guide](runbooks/troubleshooting.md). Focused runbooks: [incident](runbooks/incident-response.md), [rollback](runbooks/rollback.md), [K8s](runbooks/k8s-troubleshooting.md), [cost](runbooks/cost-optimization.md), [Slack alerting](runbooks/slack-alerting.md), [VM→K8s migration](runbooks/vm-to-k8s-migration.md), [OpenShift ops](runbooks/openshift-operations.md). |
-| [scripts/](scripts/) | Bootstrap, deploy, smoke-test, incident helpers, per-alert [remediation scripts](scripts/remediations/). |
+| [scripts/](scripts/) | Bootstrap, deploy, smoke-test, incident helpers, per-alert [remediation scripts](scripts/remediations/). | Platform Implementation: [Platorm Implementation](runbooks/platform-implementation-runbook.md) |
 
 ---
 
