@@ -153,8 +153,27 @@ Terraform env [infra/terraform/envs/openshift-baremetal/](infra/terraform/envs/o
 | [gitops/](gitops/) | Argo CD layer — [root app](gitops/root-application.yaml), [project](gitops/project.yaml), [env apps](gitops/apps/), [local harness](gitops/local/). |
 | [observability/](observability/) | Prometheus, Grafana, [multi-burn-rate SLO alerts](observability/alerts/slo-alerts.yml), [AlertManager → Slack](observability/alertmanager/alertmanager.yml). |
 | [finops-aiops/](finops-aiops/) | Python utilities for anomaly detection, rightsizing, budget burn, SLO risk. |
-| [runbooks/](runbooks/) | Start with the [layer-by-layer troubleshooting guide](runbooks/troubleshooting.md). Focused runbooks: [incident](runbooks/incident-response.md), [rollback](runbooks/rollback.md), [K8s](runbooks/k8s-troubleshooting.md), [cost](runbooks/cost-optimization.md), [Slack alerting](runbooks/slack-alerting.md), [VM→K8s migration](runbooks/vm-to-k8s-migration.md), [OpenShift ops](runbooks/openshift-operations.md). |
-| [scripts/](scripts/) | Bootstrap, deploy, smoke-test, incident helpers, per-alert [remediation scripts](scripts/remediations/). | Platform Implementation: [Platorm Implementation](runbooks/platform-implementation-runbook.md)|. 
+| [runbooks/](runbooks/) | Start with the [layer-by-layer troubleshooting guide](runbooks/troubleshooting.md). Then the end-to-end [platform implementation runbook](runbooks/platform-implementation-runbook.md) (10 phases — foundation → cutover). Focused runbooks: [incident](runbooks/incident-response.md), [rollback](runbooks/rollback.md), [K8s](runbooks/k8s-troubleshooting.md), [cost](runbooks/cost-optimization.md), [Slack alerting](runbooks/slack-alerting.md), [VM→K8s migration](runbooks/vm-to-k8s-migration.md), [OpenShift ops](runbooks/openshift-operations.md). |
+| [scripts/](scripts/) | Bootstrap, deploy, smoke-test, incident helpers, per-alert [remediation scripts](scripts/remediations/). |
+
+---
+
+## Phased Platform Implementation
+
+NAWEX ships with a complete, end-to-end implementation runbook so the platform can be stood up in a deterministic, reviewable order rather than as ad-hoc plays. See [runbooks/platform-implementation-runbook.md](runbooks/platform-implementation-runbook.md) — every phase ends with a checklist; rollback procedures for Terraform, Kubernetes, and migrated workloads live at the end of the document.
+
+| Phase | Focus | Key outcomes |
+| ----- | ----- | ------------ |
+| 1 | **Foundation** | Git, pre-commit, CI/CD secrets, remote state backend on AWS and Azure |
+| 2 | **Terraform** | On-prem vSphere, dev cloud, migration targets, cost-tag verification |
+| 3 | **Ansible** | Static + dynamic vSphere inventory, `linux-baseline`, `kubeadm join` automation |
+| 4 | **Kubernetes** | All seven overlays validated, PSA enforcement, OpenShift SCC, NetworkPolicy |
+| 5 | **GitOps** | Argo CD install, app-of-apps, prod manual sync gate, local harness |
+| 6 | **Observability** | Prometheus, Grafana, AlertManager, end-to-end Slack pipeline test |
+| 7 | **Incident Response** | Webhook, remediation mapping, dry-run test, game day |
+| 8 | **FinOps and AIOps** | Cost report, rightsizing, budget burn, SLO risk |
+| 9 | **Migration** | VM assessment, containerize, GitOps deploy, 72-hour validation, decommission |
+| 10 | **Hardening and Cutover** | Security audit, PSA verification, load test, explicit production sync |
 
 ---
 
