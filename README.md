@@ -13,6 +13,20 @@ A working reference architecture for delivering, operating, and continuously opt
 
 ---
 
+## Who This Is For
+
+**Full-stack engineers moving deeper into AI projects.** If you're working roles where you'll be building with LLMs, shipping RAG pipelines, and deploying ML models in production, NAWEX gives you the platform substrate underneath that work:
+
+- **Model serving on the same overlays as your apps** — the [LLM gateway](app/nawex-llm-gateway/) (provider-agnostic completion proxy with prompt caching and token-usage telemetry) and [RAG service](app/nawex-rag-service/) (ingest → embed → retrieve → ground) deploy as first-class workloads through [k8s/overlays/](k8s/overlays/) and Argo CD, with the same PSA-restricted, non-root, NetworkPolicy-scoped posture as the [API](app/nawex-api/) and [worker](app/nawex-worker/).
+- **GPU-capable targets** — bare-metal OpenShift (Cisco/HPE/Dell), vSphere, EKS, and AKS are peer execution backends, so model placement is a scheduling decision, not an architectural one.
+- **Observability that already speaks SLO** — latency, error rate, and burn-rate alerts in [observability/alerts/slo-alerts.yml](observability/alerts/slo-alerts.yml) extend cleanly to inference latency, retrieval recall, and token-cost SLOs.
+- **FinOps for token spend** — the [finops-aiops/](finops-aiops/) utilities (anomaly detection, budget burn, rightsizing) are the same shape you need for tracking model API spend and GPU utilization.
+- **GitOps for prompts, indices, and model versions** — every change reviewable, reversible, attributable. The discipline that keeps Terraform and Kubernetes honest is the same discipline RAG indices and model rollouts need.
+
+The platform is model-agnostic and provider-agnostic by design: bring your own LLM (hosted or self-served), your own vector store, and your own evaluation harness — NAWEX handles the delivery, security, observability, and cost layers underneath.
+
+---
+
 ## Design Principles
 
 | # | Principle | What it means in this repo |
@@ -145,7 +159,7 @@ Terraform env [infra/terraform/envs/openshift-baremetal/](infra/terraform/envs/o
 | Directory | Purpose |
 |-----------|---------|
 | [architecture/](architecture/) | New here? Start with [onboarding.md](architecture/onboarding.md). Then: target platform design, [operations reference](architecture/platform-operations-reference.md), and [SLI/SLO model](architecture/sli-slo-model.md). |
-| [app/](app/) | Deployable workloads — [web UI](app/nawex-web-ui/), [API](app/nawex-api/), [worker](app/nawex-worker/). |
+| [app/](app/) | Deployable workloads — [web UI](app/nawex-web-ui/), [API](app/nawex-api/), [worker](app/nawex-worker/), [LLM gateway](app/nawex-llm-gateway/), [RAG service](app/nawex-rag-service/). |
 | [infra/terraform/](infra/terraform/) | Reusable modules + env compositions: cloud (dev/staging/prod), [on-prem vSphere](infra/terraform/envs/onprem/), [AWS EKS](infra/terraform/envs/aws-eks/), [Azure AKS](infra/terraform/envs/azure-aks/), [ROSA](infra/terraform/envs/openshift-rosa/), [OpenShift vSphere IPI](infra/terraform/envs/openshift-vsphere/), [OpenShift bare-metal IPI](infra/terraform/envs/openshift-baremetal/). |
 | [infra/ansible/](infra/ansible/) | Everything Ansible: the mandatory Linux baseline ([system](infra/ansible/roles/system/), [security](infra/ansible/roles/security/), [observability](infra/ansible/roles/observability/), [docker](infra/ansible/roles/docker/)) orchestrated by [playbooks/linux-baseline.yml](infra/ansible/playbooks/linux-baseline.yml); the [BMC firmware preflight](infra/ansible/roles/baremetal-bmc/) for bare metal; per-env inventories ([static](infra/ansible/inventories/onprem/hosts.yml), [dynamic vSphere](infra/ansible/inventories/onprem/vmware.yml), [bare-metal by vendor](infra/ansible/inventories/baremetal/hosts.yml)); no-Ansible fallback scripts ([harden.sh](infra/ansible/scripts/harden.sh), [install_monitoring.sh](infra/ansible/scripts/install_monitoring.sh), [cost_check.sh](infra/ansible/scripts/cost_check.sh)); compliance artifacts ([CIS checklist](infra/ansible/compliance/cis-checklist.md), [audit-rules](infra/ansible/compliance/audit-rules.conf)); and the [baseline rationale](infra/ansible/docs/baseline-explained.md). |
 | [k8s/](k8s/) | Base manifests + overlays for [dev](k8s/overlays/dev/), [staging](k8s/overlays/staging/), [prod](k8s/overlays/prod/), [onprem](k8s/overlays/onprem/), [aws-eks](k8s/overlays/aws-eks/), [azure-aks](k8s/overlays/azure-aks/), [openshift](k8s/overlays/openshift/). |

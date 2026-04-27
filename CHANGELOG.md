@@ -8,6 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- LLM gateway service (`app/nawex-llm-gateway/`) — provider-agnostic completion
+  proxy with prompt caching, token-usage telemetry, mock provider for offline
+  CI, and lazy-loaded Anthropic provider for production.
+- RAG service (`app/nawex-rag-service/`) — ingest, deterministic hash-based
+  embedding, in-memory retrieval, and grounded generation through the LLM
+  gateway with explicit per-document citations.
+- Kubernetes manifests for both AI services in `k8s/base/platform.yaml`
+  (PSA-restricted, non-root, dedicated ServiceAccounts, HPA, PDB, and
+  NetworkPolicies that scope RAG → LLM gateway traffic to the minimum needed).
+- "Who This Is For" section in `README.md` describing how full-stack engineers
+  moving into LLM, RAG, and ML production work map onto NAWEX primitives.
 - Apache 2.0 LICENSE.
 - `SECURITY.md` with vulnerability reporting process and defense-in-depth summary.
 - `CONTRIBUTING.md`, `CODEOWNERS`, and GitHub issue templates.
