@@ -1,6 +1,6 @@
 # NAWEX Platform Operations Reference
 
-A consolidated operational reference for the NAWEX hybrid DevOps platform. Organized by discipline: Terraform IaC, Ansible + CI/CD, Kubernetes + GitOps, Observability + FinOps, and VM-to-Kubernetes migration.
+A consolidated operational reference for the NAWEX hybrid DevOps platform. Organized by discipline: Terraform IaC, Ansible + CI/CD, Kubernetes + GitOps, Observability + FinOps, VM-to-Kubernetes migration, and the LLM + RAG layer.
 
 ---
 
@@ -267,7 +267,62 @@ migration/
 
 ---
 
-## 6. Cross-Cutting Topics
+## 6. LLM + RAG Layer
+
+### Repository layout
+
+```
+app/
+  nawex-llm-gateway/   # provider-agnostic completion proxy
+    app.py             # Flask: /complete, /usage, /info, /healthz, /readyz
+    Dockerfile
+    tests/             # pytest, runs against deterministic mock provider
+  nawex-rag-service/   # ingest → embed → retrieve → ground pipeline
+    app.py             # Flask: /documents, /query, /stats
+    Dockerfile
+    tests/
+
+k8s/base/platform.yaml # Deployments, Services, HPAs, PDBs, NetworkPolicies
+                       # for nawex-llm-gateway and nawex-rag
+```
+
+### Core concepts
+
+The LLM gateway is a single ingress for completion requests. It is provider-agnostic — the default `mock` provider is deterministic and dependency-free so the service runs in CI and the kind harness with no API key, while `LLM_PROVIDER=anthropic` switches to the live SDK (lazy-imported, only loaded when selected). An LRU prompt cache keyed on `provider|model|temperature|prompt` deduplicates identical requests, and per-process token-usage counters are exposed at `/api/v1/llm/usage` so cost can be observed the same way infra metrics are.
+
+The RAG service is a small reference pipeline: documents posted to `/api/v1/rag/documents` are tokenized and projected into a deterministic signed-hash bag-of-words embedding, stored in an in-memory vector store. A `/api/v1/rag/query` request retrieves the top-k passages by cosine similarity, builds a grounded prompt with explicit `[doc-id]` citation instructions, and forwards it to the LLM gateway over the cluster service DNS. The embedding function and `Store` class are intentionally swap points — replace `_embed` with a real model and inject a different `Store` to plug in a managed vector database without touching the API surface.
+
+Both services run under the same container security baseline as the rest of the platform: PSA-restricted namespace, `runAsNonRoot`, `readOnlyRootFilesystem`, dropped capabilities, `automountServiceAccountToken: false`, and per-app NetworkPolicies. The RAG → LLM-gateway path is the only ingress to the gateway from inside the namespace (`allow-llm-gateway-ingress-from-rag`), and the matching egress on the RAG side (`allow-rag-egress-to-llm-gateway`) — default-deny still applies to everything else.
+
+### FAQ
+
+**How is the LLM layer made provider-agnostic and CI-safe?**
+
+The gateway selects a provider at startup via `LLM_PROVIDER`. The `mock` provider is pure-Python and deterministic — it hashes the prompt and returns a synthetic completion with plausible token counts, which means the test suite, the kind harness, and local dev never need an API key or network access. The `anthropic` provider is lazy-imported inside its dispatch function, so the SDK is only a runtime dependency when actually selected. Switching providers is an env-var change, not a code change — same `/api/v1/llm/complete` contract, same response shape, same cache and usage telemetry. New providers slot in by adding one more dispatch branch.
+
+Ref: [app/nawex-llm-gateway/app.py](../app/nawex-llm-gateway/app.py), [k8s/base/platform.yaml](../k8s/base/platform.yaml)
+
+**How does the RAG service ground answers and how is it made dependency-free?**
+
+`/api/v1/rag/query` retrieves the top-k passages from the in-memory store by cosine similarity, then builds a prompt that instructs the model to answer using only the supplied context and to cite sources by their bracketed id (e.g. `[doc-7]`). The response carries the model's answer plus a `citations` array with the retrieved doc ids and their similarity scores — callers can display provenance without a second round-trip. The embedding implementation is a deterministic signed-hash bag-of-words projection: pure Python, no model download, no GPU, no embeddings API. That keeps the pipeline runnable in CI and on a laptop, while leaving `_embed` and `Store` as explicit swap points for a real embedding model and a managed vector DB.
+
+Ref: [app/nawex-rag-service/app.py](../app/nawex-rag-service/app.py)
+
+**How are LLM and RAG workloads secured and isolated on the cluster?**
+
+They inherit the platform's container security baseline — non-root, read-only root FS, dropped capabilities, seccomp `RuntimeDefault`, PSA-restricted namespace, no automounted service account token. NetworkPolicy is the interesting part: the namespace is default-deny, the LLM gateway only accepts ingress from pods labelled `app: nawex-rag` (`allow-llm-gateway-ingress-from-rag`), and the RAG service only has egress to the gateway (`allow-rag-egress-to-llm-gateway`). DNS to kube-system is allowed for service discovery; everything else is blocked. The result: even if another workload in the namespace is compromised, it cannot reach the gateway, and the RAG pod cannot exfiltrate to arbitrary destinations.
+
+Ref: [k8s/base/platform.yaml](../k8s/base/platform.yaml)
+
+**How are LLM cost and capacity treated as first-class operational signals?**
+
+Three integration points with the existing observability and FinOps pipeline. First, the gateway exposes prompt/completion token counters and cache-hit counts at `/api/v1/llm/usage` — these are the inputs for token-cost SLOs and cache-effectiveness dashboards. Second, the prompt cache (`LLM_CACHE_CAPACITY`, default 256) is the cheapest cost lever — repeated identical requests never reach the provider. Third, both services have HPAs (`nawex-llm-gateway` 2–6 replicas, `nawex-rag` 2–6 replicas) targeting 70% CPU, and PDBs keep at least one replica available during voluntary disruption. Burn-rate and rightsizing logic in [finops-aiops/python/](../finops-aiops/python/) extends to token spend the same way it covers infra spend — cost is just another metric.
+
+Ref: [app/nawex-llm-gateway/app.py](../app/nawex-llm-gateway/app.py), [k8s/base/platform.yaml](../k8s/base/platform.yaml), [finops-aiops/python/](../finops-aiops/python/)
+
+---
+
+## 7. Cross-Cutting Topics
 
 ### How consistency is maintained across on-premises and cloud
 
@@ -288,7 +343,7 @@ Mental model: cloud and on-prem are peer execution environments. They differ in 
 
 ---
 
-## 7. Capability Matrix
+## 8. Capability Matrix
 
 | Capability | Evidence |
 |---|---|
@@ -300,3 +355,5 @@ Mental model: cloud and on-prem are peer execution environments. They differ in 
 | GitOps | Argo CD app-of-apps, 7 targets |
 | Linux systems | Ansible linux-baseline, all infra Linux-based |
 | Scripting (Python/Bash) | [scripts/](../scripts/) + [finops-aiops/](../finops-aiops/) |
+| LLM gateway | [app/nawex-llm-gateway/](../app/nawex-llm-gateway/) — provider-agnostic proxy, prompt cache, token telemetry |
+| RAG pipeline | [app/nawex-rag-service/](../app/nawex-rag-service/) — ingest → embed → retrieve → ground with citations |
